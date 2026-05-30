@@ -1,7 +1,7 @@
 # Adversarial Fairness — Thesis System + FFB Benchmark
 
 A unified fairness framework combining:
-- **Agentic Adversarial Debiasing** — a multi-agent adversarial fairness pipeline (Zhang et al. 2018 + LangChain orchestration)
+- **Agentic Adversarial Debiasing** — a multi-agent adversarial fairness pipeline
 - **FFB Benchmark** — pre-computed results from the Fair Fairness Benchmark (Han et al. ICLR 2024)
 
 ---
