@@ -127,7 +127,7 @@ Make sure Ollama is running (`ollama serve`), then:
 .venv\Scripts\python adversarial_fairness/main.py --dataset adult --iterations 25 --epochs 50 --threshold 80
 ```
 
-**Available datasets:** `adult` `german` `compas` `bank` `kdd` `acs` `utkface`
+**Available datasets:** `adult` `german` `compas` `bank` `kdd` `acs` `utkface` `Migration`
 
 Results are saved automatically to `adversarial_fairness/long_term_memory.json`.
 
