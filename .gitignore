@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Claude Code local settings (personal, not for sharing)
+.claude/settings.local.json
+
+# Virtual environments
+.venv/
+venv/
+
+# Jupyter notebooks (old working files)
+*.ipynb
+.ipynb_checkpoints/
+
+# Datasets — too large, download from Dropbox link in README
+adversarial_fairness/datasets/
+fair_fairness_benchmark/datasets/
+
+# FFB WandB run logs — large, not needed
+fair_fairness_benchmark/src/wandb/
+
+# FFB large images
+fair_fairness_benchmark/img/
+
+# FFB result files — users run download_ffb_wandb.py to get these
+fair_fairness_benchmark/results/*.json
+
+# FFB large result files — users run download_ffb_wandb.py to get these
+fair_fairness_benchmark/results/adult_*.json
+fair_fairness_benchmark/results/german_*.json
+fair_fairness_benchmark/results/compas_*.json
+fair_fairness_benchmark/results/bank_*.json
+fair_fairness_benchmark/results/kdd_*.json
+fair_fairness_benchmark/results/acs_*.json
+
+# WandB local cache
+wandb/
+fair_fairness_benchmark/src/wandb/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# KEPT in repo:
+# adversarial_fairness/long_term_memory.json     (small, useful reference)
+# fair_fairness_benchmark/results/migration_*.json (your own results)

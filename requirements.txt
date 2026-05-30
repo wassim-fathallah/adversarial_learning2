@@ -1,0 +1,14 @@
+# Your adversarial fairness system + unified dashboard
+# Install in venv: pip install -r requirements.txt
+
+torch>=2.0.0
+numpy
+pandas
+scikit-learn
+matplotlib
+streamlit>=1.30.0
+plotly>=5.0.0
+langchain
+langchain-ollama
+langchain-core
+wandb

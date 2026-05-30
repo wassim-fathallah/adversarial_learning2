@@ -1,0 +1,22 @@
+# FFB benchmark environment — Python 3.10
+# Matches C:\Users\jamil\.conda\envs\ffb_env (conda activate ffb_env)
+#
+# Fresh setup on another machine:
+#   conda create -n ffb_env python=3.10
+#   conda activate ffb_env
+#   pip install -r requirements_ffb.txt
+#
+# Note: torch cu116 requires CUDA 11.6.
+# For CPU-only: replace torch line with: torch==1.13.1
+
+torch==1.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+torchaudio==0.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+torchvision==0.14.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+numpy==1.24.2
+pandas==1.5.3
+scikit-learn==1.2.2
+scipy==1.10.1
+statsmodels==0.13.5
+tabulate==0.9.0
+folktables==0.0.12
+wandb==0.14.0
