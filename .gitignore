@@ -25,8 +25,8 @@ fair_fairness_benchmark/src/wandb/
 # FFB large images
 fair_fairness_benchmark/img/
 
-# FFB result files — users run download_ffb_wandb.py to get these
-fair_fairness_benchmark/results/*.json
+# Migration results — too large (141 MB), users run FFB locally
+fair_fairness_benchmark/results/migration_*.json
 
 # FFB large result files — users run download_ffb_wandb.py to get these
 fair_fairness_benchmark/results/adult_*.json
