@@ -234,11 +234,13 @@ def run_full_training(
     plotter      = TrainingPlotter(state.sensitive_attrs)
 
     # ── Best-result tracking ──────────────────────────────────────────────────
-    # Primary  : among iterations where accuracy >= 0.80, pick highest P-rule
-    # Fallback : if accuracy never reaches 0.80, pick highest accuracy overall
-    best_metrics          = {}    # primary   — acc >= 0.80, max P-rule
+    # Primary  : among iterations where accuracy >= 0.80, pick highest min P-rule
+    # Fallback : if accuracy never reaches 0.80, pick highest min P-rule
+    #            (accuracy is a secondary tiebreaker, not the primary goal)
+    best_metrics          = {}    # primary   — acc >= 0.80, max min P-rule
     best_prule_at_acc80   = -1.0
-    best_metrics_fallback = {}    # fallback  — max accuracy
+    best_metrics_fallback = {}    # fallback  — max min P-rule, then max acc
+    best_prule_fallback   = -1.0
     best_acc_fallback     = -1.0
 
     loader = _make_loader(state.X_train, state.y_train, state.sensitive_train)
@@ -326,13 +328,16 @@ def run_full_training(
         prule = metrics["min_p_rule"]
 
         if acc >= 0.80:
-            # Primary: accuracy constraint satisfied — maximise P-rule
+            # Primary: accuracy satisfied — maximise min P-rule
             if prule > best_prule_at_acc80:
                 best_prule_at_acc80 = prule
                 best_metrics        = metrics
         else:
-            # Fallback: accuracy never hit 0.80 — keep highest accuracy seen
-            if acc > best_acc_fallback:
+            # Fallback: accuracy never reached 80% (e.g. UTKFace)
+            # Pick iteration with best combined score = (min_prule + acc*100) / 2
+            score = (prule + acc * 100.0) / 2.0
+            if score > best_prule_fallback:
+                best_prule_fallback   = score
                 best_acc_fallback     = acc
                 best_metrics_fallback = metrics
 
