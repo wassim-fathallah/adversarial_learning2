@@ -30,12 +30,5 @@ fair_fairness_benchmark/src/wandb/
 fair_fairness_benchmark/img/
 wandb/
 
-# ── FFB results (too large — run download_ffb_wandb.py) ───────────────────────
-fair_fairness_benchmark/results/adult_*.json
-fair_fairness_benchmark/results/german_*.json
-fair_fairness_benchmark/results/compas_*.json
-fair_fairness_benchmark/results/bank_marketing_*.json
-fair_fairness_benchmark/results/bank_*.json
-fair_fairness_benchmark/results/kdd_*.json
-fair_fairness_benchmark/results/acs_*.json
-# migration results included — stripped to final step (1.1 MB total)
+# ── FFB results — all included in repo (small, final-step only) ───────────────
+# Nothing excluded here — all results/*.json are committed

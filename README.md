@@ -66,49 +66,52 @@ pip install -r requirements.txt
 
 ## 4 — Download datasets
 
-**Download link:** [datasets.zip on Dropbox](https://www.dropbox.com/scl/fi/6t0jh1n5v7y2tr35bkidq/datasets.zip?rlkey=2xkqwavfcqb56c7ybavzcm9ga&st=93ediu4h&dl=1)
+**All datasets are available at one place:**
 
-Download and extract into `adversarial_fairness/datasets/` so the structure looks like:
+> [**Download datasets.zip from Dropbox**](https://www.dropbox.com/scl/fi/6t0jh1n5v7y2tr35bkidq/datasets.zip?rlkey=2xkqwavfcqb56c7ybavzcm9ga&st=93ediu4h&dl=1)
+
+After downloading, extract the zip and place the contents **inside `adversarial_fairness/datasets/`**.
+The final structure must look exactly like this:
 
 ```
-adversarial_fairness/datasets/
-├── adult/raw/adult.data
-├── german/raw/german_credit_risk.csv
-├── compas/raw/compas-scores-two-years.csv
-├── bank_marketing/raw/bank-additional-full.csv
-├── census_income_kdd/raw/census-income.data
-├── acs/raw/2018/1-Year/psam_p06.csv
-├── utkface/raw/age_gender.csv
-└── migration/migration.csv
+adversarial_learning2/
+└── adversarial_fairness/
+    └── datasets/              ← extract here
+        ├── adult/
+        │   └── raw/
+        │       └── adult.data
+        ├── german/
+        │   └── raw/
+        │       └── german_credit_risk.csv
+        ├── compas/
+        │   └── raw/
+        │       └── compas-scores-two-years.csv
+        ├── bank_marketing/
+        │   └── raw/
+        │       └── bank-additional-full.csv
+        ├── census_income_kdd/
+        │   └── raw/
+        │       └── census-income.data
+        ├── acs/
+        │   └── raw/2018/1-Year/
+        │       └── psam_p06.csv
+        ├── utkface/
+        │   └── raw/
+        │       └── age_gender.csv
+        └── migration/
+            └── migration.csv
 ```
 
-Or run the automated setup which downloads everything:
+> ⚠️ **ONE location for ALL datasets** — both your system and the FFB benchmark scripts read from `adversarial_fairness/datasets/`. Do not place datasets anywhere else.
+
+Or let `setup.py` download and extract automatically:
 ```bash
 python setup.py
 ```
 
 ---
 
-## 5 — Download FFB benchmark results
-
-UTKFace results are already included in the repo.
-For adult, german, compas, bank results run:
-
-```bash
-python download_ffb_wandb.py
-```
-
-Fetches pre-computed results from the FFB paper's public WandB projects.
-No GPU needed. Downloads final metrics only (~10 MB, ~20 min).
-
-Methods: ERM, AdvDebias, PR, HSIC, LAFTR
-Datasets: adult, german, compas, bank (tabular)
-
-> Safe to stop and restart — already-downloaded files are skipped automatically.
-
----
-
-## 6 — Run the Agentic Adversarial Debiasing system
+## 5 — Run the Agentic Adversarial Debiasing system
 
 Make sure Ollama is running (`ollama serve`), then:
 
