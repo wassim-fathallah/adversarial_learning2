@@ -91,15 +91,18 @@ python setup.py
 
 ## 5 — Download FFB benchmark results
 
+UTKFace results are already included in the repo.
+For adult, german, compas, bank results run:
+
 ```bash
 python download_ffb_wandb.py
 ```
 
-This fetches pre-computed results from the FFB paper's public WandB projects.
-No GPU needed. Downloads final metrics only (~17 MB, ~20 min).
+Fetches pre-computed results from the FFB paper's public WandB projects.
+No GPU needed. Downloads final metrics only (~10 MB, ~20 min).
 
 Methods: ERM, AdvDebias, PR, HSIC, LAFTR
-Datasets: adult, german, compas, bank, migration (tabular) + UTKFace (image)
+Datasets: adult, german, compas, bank (tabular)
 
 > Safe to stop and restart — already-downloaded files are skipped automatically.
 
