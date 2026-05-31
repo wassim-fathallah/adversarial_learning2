@@ -8,6 +8,9 @@ Tab 3 — Comparison — Migration         : both systems side by side
 
 import json
 import os
+import subprocess
+import sys
+import tempfile
 from collections import defaultdict
 from glob import glob
 
@@ -197,6 +200,92 @@ tab_my, tab_ffb = st.tabs([
 # ── TAB 1 : Agentic Adversarial Debiasing ────────────────────────────────────
 
 with tab_my:
+
+    # ── Upload & Train ────────────────────────────────────────────────────────
+    with st.expander("Apply AAD on a new dataset", expanded=False):
+        uploaded_files = st.file_uploader(
+            "Upload dataset file(s) — .csv, .data, .tsv, .txt or any tabular format. "
+            "Upload multiple files if your dataset is split across files (e.g. train + test).",
+            type=None,
+            accept_multiple_files=True,
+        )
+
+        c1, c2, c3, c4 = st.columns(4)
+        iterations = c1.slider("Iterations",  5,  50, 25)
+        epochs     = c2.slider("Epochs/step", 10, 100, 50)
+        threshold  = c3.slider("P-rule target %", 50, 95, 80)
+        pretrain   = c4.slider("Pretrain epochs", 5, 30, 10)
+
+        # When multiple files: let user pick which one is the main entry point
+        main_file = None
+        if len(uploaded_files) == 1:
+            main_file = uploaded_files[0].name
+        elif len(uploaded_files) > 1:
+            main_file = st.selectbox(
+                "Which file is the main dataset file?",
+                [f.name for f in uploaded_files],
+            )
+
+        if uploaded_files and st.button("▶ Start Training", type="primary"):
+            # Save all files to a single temp directory
+            tmp_dir  = tempfile.mkdtemp()
+            tmp_paths = {}
+            for uf in uploaded_files:
+                dest = os.path.join(tmp_dir, uf.name)
+                with open(dest, "wb") as f:
+                    f.write(uf.read())
+                tmp_paths[uf.name] = dest
+
+            entry_path = tmp_paths[main_file]
+            ds_name    = os.path.splitext(main_file)[0]
+
+            python = os.path.join(ROOT, "adversarial_fairness", ".venv", "Scripts", "python.exe")
+            if not os.path.exists(python):
+                python = sys.executable
+
+            cmd = [
+                python,
+                os.path.join(ROOT, "adversarial_fairness", "main.py"),
+                "--dataset",    entry_path,
+                "--name",       ds_name,
+                "--iterations", str(iterations),
+                "--epochs",     str(epochs),
+                "--threshold",  str(threshold),
+                "--pretrain",   str(pretrain),
+            ]
+
+            st.info(f"Training **{ds_name}** — {len(uploaded_files)} file(s) uploaded")
+            log_box = st.empty()
+            logs    = []
+
+            with st.spinner("Training in progress…"):
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    cwd=os.path.join(ROOT, "adversarial_fairness"),
+                )
+                for line in proc.stdout:
+                    logs.append(line.rstrip())
+                    log_box.code("\n".join(logs[-30:]))
+                proc.wait()
+
+            # Clean up temp dir
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+            if proc.returncode == 0:
+                st.success("✅ Training complete! Scroll down to see results.")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("❌ Training failed. Check the log above.")
+
+    st.divider()
+
     if st.button("🔄 Refresh", key="refresh_my"):
         st.cache_data.clear()
 

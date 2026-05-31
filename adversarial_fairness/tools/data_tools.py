@@ -35,6 +35,44 @@ def _llm_invoke(prompt: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Fingerprint — computed after load_dataset, used for lambda warm-start
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compute_fingerprint(state) -> dict:
+    """
+    Structural fingerprint of the loaded dataset.
+    Stored in long-term memory and used to find similar past runs
+    for lambda warm-starting.
+    """
+    y = state.y_train.cpu().numpy()
+    s = state.sensitive_train.cpu().numpy()
+    n = len(y)
+
+    pos_rate       = float(y.mean())
+    class_imbalance = round(min(pos_rate, 1.0 - pos_rate), 4)
+
+    group_ratios = []
+    for i in range(s.shape[1]):
+        col = s[:, i]
+        group_ratios.append(min(float((col == 0).mean()), float((col == 1).mean())))
+    group_size_ratio = round(min(group_ratios), 4) if group_ratios else 0.5
+
+    if n < 10_000:
+        bucket = "small"
+    elif n < 100_000:
+        bucket = "medium"
+    else:
+        bucket = "large"
+
+    return {
+        "n_sensitive_attrs":   len(state.sensitive_attrs),
+        "class_imbalance":     class_imbalance,
+        "group_size_ratio":    group_size_ratio,
+        "dataset_size_bucket": bucket,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
