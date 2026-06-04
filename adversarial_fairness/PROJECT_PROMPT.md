@@ -18,13 +18,16 @@ Environment:
 ## Run Commands
 
 ```bash
-# Run ALL 7 datasets sequentially (default — no flags needed):
+# Run ALL 7 standard datasets sequentially (default — no flags needed):
 cd C:\Users\jamil\Desktop\adversarial_learning2\adversarial_fairness
 python main.py
 
 # Run a single dataset:
 python main.py --dataset adult
 python main.py --dataset adult --iterations 25 --epochs 50
+
+# Run the Migration dataset (standalone only — not in ALL_DATASETS):
+python main.py --dataset migration
 
 # Streamlit dashboard (separate terminal):
 python -m streamlit run streamlit_app.py
@@ -33,7 +36,8 @@ python -m streamlit run streamlit_app.py
 Startup: main.py pings http://localhost:11434 before doing anything.
 If Ollama is not running → prints fix instructions → sys.exit(1).
 
-Datasets run in order: adult → bank → compas → german → kdd → acs → utkface
+Standard datasets run in order: adult → bank → compas → german → kdd → acs → utkface
+Migration is NOT in ALL_DATASETS and must be run explicitly with --dataset migration.
 Missing dataset files are skipped gracefully. Final summary table printed at end.
 
 ---
@@ -80,6 +84,15 @@ adversarial_fairness/
 │   ├── training_tools.py    # pretrain, run_full_training
 │   ├── lambda_tools.py      # decide_initial_lambda, decide_lambda_for_iteration
 │   └── proxy_tools.py       # proxy feature detection (unused — dead code, kept for reference)
+├── datasets/
+│   ├── adult/raw/
+│   ├── bank_marketing/raw/
+│   ├── compas/raw/
+│   ├── german/raw/
+│   ├── census_income_kdd/raw/
+│   ├── acs/raw/
+│   ├── utkface/raw/
+│   └── migration/           # HIMS-Tunisia migration survey (added)
 └── utils/
     ├── metrics.py           # all metrics
     └── plotting.py          # training curves PNG saved after each run
@@ -96,17 +109,16 @@ All tools are LangChain @tool decorated functions sharing `state` (global single
 Between datasets, reset_state() wipes everything clean.
 
 Step 1 — identify_sensitive:
-  LLM reads column names + 5 sample rows. Returns:
-  sensitive_attrs, binarization_rules, target_col, columns_to_drop
-  Hardcoded fallbacks exist for all 7 datasets.
+  LLM reads first 40 non-V columns + 1 sample value per column. Returns:
+  sensitive_attrs, binarization_rules, target_col, columns_to_drop.
+  Hardcoded fallbacks exist for the 7 standard datasets only.
+  Migration has NO hardcoded fallback — LLM must succeed.
 
 Step 2 — load_dataset:
   Full preprocessing pipeline (see Dataset Handling section).
 
 Step 3 — decide_initial_lambda:
-  No LLM. No long-term memory lookup.
-  Returns random λ ∈ [0.05, 0.30] per sensitive attribute (uniform).
-  Momentum will adjust from this starting point within the first few iterations.
+  No LLM. Returns λ = 0.0 for each sensitive attribute.
 
 Step 4 — pretrain (10 epochs):
   Classifier and adversary trained independently. Warm start before competition.
@@ -211,6 +223,9 @@ Running-max guard: while P-rule is still below 80%, λ is never allowed to drop
 below the highest value it has ever reached for that attribute. Once P-rule >= 80%,
 λ can decrease freely to recover accuracy.
 
+Initial lambda: zero for each attribute.
+Momentum will adjust from this starting point within the first few iterations.
+
 This replaces the previous LLM-based per-iteration decision. The LLM was reading
 short-term memory and returning a JSON lambda vector — removed because:
   - Momentum already handles the core signal (gap-driven adjustment)
@@ -289,52 +304,107 @@ Short-term (memory/short_term.py):
 
 Long-term (long_term_memory.json):
   Persisted JSON across all runs.
-  Key: "{dataset_name}|{target_col}|{attr1,attr2}"
+  Key: "{dataset_name}|{target_col}|{attr1,attr2,...}"
   Stores last 10 runs per key: lambda_final, p_rules_final, accuracy_final,
   total_epochs, iterations, success, lambda_trajectory, iteration_metrics.
-  Used by: Streamlit dashboard + warm-starting λ on future runs of same dataset.
+  Used by: Streamlit dashboard.
 
 ---
 
 ## Dataset Handling (tools/data_tools.py)
 
-Preprocessing pipeline:
+### LLM Schema Building
+
+Before calling the LLM, `identify_sensitive` builds a compact schema:
+  1. Filter out V-prefixed columns (`^V\d` regex) — raw survey codes used in
+     migration dataset; these are meaningless to the LLM.
+  2. Cap to first 40 columns (first 40 contain demographics for migration;
+     last columns contain post-arrival outcome indices).
+  3. One sample value per column shown to keep prompt short.
+  4. LLM called via direct `ollama.generate()` client (NOT langchain OllamaLLM),
+     with `options={"num_gpu": 0, "temperature": 0.1}` to avoid GPU OOM on large
+     schema prompts. This bypasses langchain to pass driver-level options correctly.
+
+### LLM Prompt Strategy
+
+The prompt guides the LLM without hardcoding any column names:
+  - Target: must be a legal/administrative/socioeconomic STATUS outcome.
+    Explicitly excluded: geographic destination, travel route, country visited.
+  - Sensitive attrs: must be pre-existing demographic characteristics from BEFORE
+    the studied event (gender, geographic ORIGIN, education level category).
+    Explicitly excluded: "current" columns (current country/city/job), destination,
+    computed index/score columns, binary flag derivations of an already-listed attr.
+  - Diversity rule: 3 attrs must span different dimensions:
+    (a) gender/sex, (b) geographic origin, (c) socioeconomic background.
+    Do NOT pick two attributes measuring the same concept (e.g., two origin columns).
+  - Prefer original multi-category columns over binary derived versions.
+
+### Preprocessing Pipeline
+
   1. Auto-detect separator (comma / semicolon / whitespace+comma)
   2. Assign column names for headerless files (adult, kdd) from built-in schema_map
-  3. Drop identified columns (IDs, weights, leakage)
-  4. Binarize target: binary → sort+pick; numeric → median split; categorical → code+median
-  5. Binarize sensitive attributes per LLM rules
-  6. Expand 'pixels' column for UTKFace (np.fromstring per row)
-  7. Drop high-cardinality string columns (>50 unique OR >10% of rows)
-  8. Fill missing values (median for numeric, "Unknown" for categorical)
-  9. Subsample to 100K rows if dataset exceeds that
-  10. One-hot encode remaining categoricals
-  11. Drop near-constant columns (std < 1e-6)
-  12. StandardScaler + nan_to_num safety net
-  13. 80/20 stratified split, random_state=42
+  3. Drop V-prefixed columns for migration (273 raw survey code columns removed)
+  4. Drop identified columns (IDs, weights, leakage)
+  5. Binarize target: binary → sort+pick; numeric → median split; categorical → code+median
+  6. Binarize sensitive attributes per LLM rules
+  7. Expand 'pixels' column for UTKFace (np.fromstring per row)
+  8. Drop high-cardinality string columns (>50 unique OR >10% of rows)
+  9. Fill missing values (median for numeric, "Unknown" for categorical)
+  10. Subsample to 100K rows if dataset exceeds that
+  11. One-hot encode remaining categoricals
+  12. Drop near-constant columns (std < 1e-6)
+  13. StandardScaler + nan_to_num safety net
+  14. 80/20 stratified split, random_state=42
 
-Supported datasets:
+---
+
+## Supported Datasets
+
+Standard (all 7 run automatically with `python main.py`):
+
   adult   : datasets/adult/raw/adult.data
             target: income | sensitive: sex (Male=1), race (White=1)
             headerless — 15-column schema assigned internally
+
   german  : datasets/german/raw/german_credit_risk.csv
             target: Class | sensitive: Sex (male=1), Age (>25=1)
             natural accuracy ceiling ~75-78% (small dataset, 1000 rows)
+
   compas  : datasets/compas/raw/compas-scores-two-years.csv
             target: two_year_recid | sensitive: race (Caucasian=1), sex (Male=1)
             natural accuracy ceiling ~68%
+
   utkface : datasets/utkface/raw/age_gender.csv
             target: age (>median=1) | sensitive: ethnicity (0=1), gender (0=1)
             pixels column expanded via np.fromstring (memory-efficient)
+
   kdd     : datasets/census_income_kdd/raw/census-income.data
             target: income | sensitive: race (White=1), sex (Male=1)
             headerless — 42-column schema assigned internally
+
   bank    : datasets/bank_marketing/raw/bank-additional-full.csv
             target: y | sensitive: age (>40=1), marital (married=1)
+
   acs     : datasets/acs/raw/2018/1-Year/psam_p06.csv
             target: PINCP (>median=1) | sensitive: RAC1P (1=White), SEX (1=Male)
             drops: SERIALNO, SPORDER, PWGTP, PWGTP1–PWGTP80 (replicate weights)
             subsampled to 100K (full file: ~378K rows, 280+ columns)
+
+Standalone (run separately with --dataset migration):
+
+  migration : datasets/migration/migration.csv
+              Source: HIMS-Tunisia survey (High Impact Migration Survey)
+              Rows: 3161 | Raw columns: ~305 (273 V-prefixed survey codes + ~32 clean)
+              Target: legal_entry (legal authorization/entry status — LLM-identified)
+              Sensitive: 3 attrs — LLM-identified, typically from:
+                Gender, coastal_origin / region_origin, educ_level
+              NO hardcoded fallback — LLM must identify attributes from schema.
+              Special preprocessing:
+                - V-prefixed columns dropped before loading (raw survey codes)
+                - First 40 columns shown to LLM (demographics are in early columns)
+                - LLM asked to pick 3 attrs across gender / geographic origin /
+                  education dimensions (no column names hardcoded)
+              Run: python main.py --dataset migration
 
 ---
 
@@ -344,7 +414,7 @@ Run: python -m streamlit run streamlit_app.py
 Reads long_term_memory.json, refreshes every 10 seconds (cache TTL=10).
 
 Layout:
-  - One tab per dataset
+  - One tab per dataset (appears automatically once a run is saved to memory)
   - Sub-tabs per run (Run 1 date, Run 2 date, ...)
   - Each run: summary card (accuracy, P-rule per attr, status, epochs) +
     4-subplot interactive chart:
@@ -353,26 +423,48 @@ Layout:
       Row 3: Lambda per sensitive attr
       Row 4: Adversary loss
 
+Benchmark Comparison Panel:
+  The dashboard includes a comparison against the fair_fairness_benchmark
+  (WandB: https://wandb.ai/fair_benchmark/exp1.adv_gr).
+  Overlapping tabular datasets (adult, bank_marketing, german, compas, kdd, acs)
+  plus the image dataset utkface are shown side-by-side with the benchmark's
+  reported metrics so the thesis comparison is directly visible in the UI.
+  KDD (census-income KDD) and ACS (ACS-Income, California) FFB results were
+  pulled from WandB via download_ffb_wandb.py — full 5-method sweep (ERM,
+  AdvDebias, LAFTR, HSIC, PrejudiceRemover) over race & sex, 10 seeds.
+  The FFB tab auto-discovers every dataset present in
+  fair_fairness_benchmark/results/, so new downloads appear with no code change.
+  Benchmark metrics tracked: accuracy, precision, ROC-AUC, Average Precision,
+  DP (demographic parity), P-rule, ABCC (ddss).
+  The "Max-Acc / Max-Prule" sub-tab and compare_ffb.py extract three operating
+  points per (method, attribute) — Max-Acc, Max-Prule, Trade-off — reporting
+  Acc, P-rule, ΔDP, ΔEOdd, ΔEOpp (mean over seeds).
+
 ---
 
 ## LangChain Integration
 
-LLM: llama3.1 via local Ollama (OllamaLLM, temperature=0.1)
+LLM: llama3.1 via local Ollama
+  - Called via direct `ollama.generate()` (NOT langchain OllamaLLM) to pass
+    `num_gpu=0` at the driver level, preventing CUDA OOM on large schema prompts.
+  - temperature=0.1
+
 All 5 pipeline functions are @tool decorated.
 Pipeline called sequentially in orchestrator.py — NOT via ReAct agent.
 
 LLM used for ONE thing only:
-  1. identify_sensitive — reads column names + 5 sample rows → returns sensitive attrs,
-     binarization rules, target col, columns to drop.
-     Hardcoded fallbacks cover all 7 datasets if LLM fails or picks wrong columns.
+  1. identify_sensitive — reads first 40 non-V columns + 1 sample value per column
+     → returns sensitive attrs, binarization rules, target col, columns to drop.
+     Hardcoded fallbacks cover all 7 standard datasets if LLM fails or picks wrong columns.
+     Migration: no fallback — LLM failure raises RuntimeError with root cause shown.
 
 LLM guardrails in identify_sensitive:
-  - If suggested target_col does not exist in dataset → use fallback
+  - If suggested target_col does not exist in dataset → use fallback (standard datasets only)
   - If suggested sensitive attrs are in the known drop list (e.g. PWGTP1/PWGTP2 for ACS)
     or match weight column patterns → use fallback
 
 NOT used for:
-  - decide_initial_lambda → random uniform [0.05, 0.30] per attribute
+  - decide_initial_lambda → zero per attribute
   - decide_lambda_for_iteration → pure momentum + running-max guard (deterministic)
 
 ---
@@ -391,7 +483,12 @@ NOT used for:
   cause the model to predict all-negative → P-rule artificially 100%. Monitor F1.
 - ACS: 280+ columns including coded numeric fields (NAICSP, SOCP) dropped by
   the high-cardinality filter.
+- Migration: LLM attribute identification is sensitive to column ordering and prompt
+  wording. The LLM tends to pick multiple geographic-origin columns if not guided
+  toward diversity across dimensions. Re-runs may pick slightly different attrs since
+  there is no hardcoded fallback.
 - Each Ollama LLM call takes 10–30s on CPU. GPU speeds this up significantly.
+  GPU OOM is prevented by passing num_gpu=0 via direct ollama client.
 
 ---
 
@@ -406,6 +503,8 @@ NOT used for:
 | Stopping condition       | acc >= 70% AND P-rule >= 80%   | acc >= 80% AND P-rule >= 80% (with optimal trade-off tracking) |
 | Multi-dataset runner     | separate command per dataset   | python main.py runs all 7 automatically  |
 | Ollama check             | no check                       | startup ping → exit if not running       |
+| Lambda control           | LLM per iteration              | deterministic momentum + running-max guard |
+| GPU OOM on large schemas | crashed on migration dataset   | direct ollama client with num_gpu=0      |
 
 ---
 
@@ -419,8 +518,9 @@ Datasets: adult, bank_marketing, german, compas
 Strategy:
   - Same datasets, same metrics
   - Best run vs best run (accepted in fairness ML literature)
-  - Our extras: F1, Equalized Odds, Equalized Opportunity, multi-dataset automation
-  - Visualized via Streamlit for thesis demo
+  - Our extras: F1, Equalized Odds, Equalized Opportunity, multi-dataset automation,
+    migration dataset (novel — not in benchmark), Streamlit dashboard for thesis demo
+  - Benchmark results shown directly in Streamlit for side-by-side comparison
 
 ---
 

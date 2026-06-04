@@ -19,8 +19,8 @@ from langchain_ollama import OllamaLLM
 
 from state import state
 
-# ── LLM shared instance (tools import this too) ───────────────────────────────
-OLLAMA_MODEL = "llama3.2:3b"   # change to llama3.1 if you have ≥16 GB RAM free
+# LLM shared instance (tools import this too)
+OLLAMA_MODEL = "llama3.1"   # must be a model pulled in Ollama (run: ollama list)
 
 llm = OllamaLLM(model=OLLAMA_MODEL, temperature=0.1)
 
@@ -34,9 +34,9 @@ def _llm_invoke(prompt: str) -> str:
     return resp.response
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Fingerprint — computed after load_dataset, used for lambda warm-start
-# ─────────────────────────────────────────────────────────────────────────────
+#
 
 def compute_fingerprint(state) -> dict:
     """
@@ -72,9 +72,9 @@ def compute_fingerprint(state) -> dict:
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+#
 
 def _extract_json(text: str) -> dict:
     """Extract first JSON object from LLM prose response."""
@@ -96,22 +96,25 @@ def _infer_dataset_key(dataset_path: str = "", dataset_name: str = "", columns=N
         " ".join([str(c).lower() for c in cols]),
     ])
 
-    if "adult" in haystack or "income" in haystack:
-        return "adult"
-    if "german" in haystack or "credit" in haystack:
-        return "german"
+    # Match specific dataset markers FIRST. The generic "income" -> adult rule is
+    # last because several datasets contain "income" in their path/columns
+    # (e.g. census_income_kdd, ACS PINCP) and must not be mistaken for Adult.
     if "compas" in haystack or "two_year_recid" in haystack:
         return "compas"
+    if "german" in haystack or "credit" in haystack:
+        return "german"
     if "utkface" in haystack or ("ethnicity" in haystack and "gender" in haystack):
         return "utkface"
-    if "kdd" in haystack or "census-income" in haystack:
+    if "kdd" in haystack or "census-income" in haystack or "census_income" in haystack:
         return "kdd"
-    if "bank" in haystack or "bank_marketing" in haystack or "bank-additional" in haystack:
-        return "bank"
     if "acs" in haystack or "psam_p" in haystack or "pums" in haystack:
         return "acs"
+    if "bank" in haystack or "bank_marketing" in haystack or "bank-additional" in haystack:
+        return "bank"
     if "migration" in haystack or "legal_entry" in haystack or "hims" in haystack or "coastal_origin" in haystack:
         return "migration"
+    if "adult" in haystack or "income" in haystack:
+        return "adult"
     return ""
 
 
@@ -147,9 +150,9 @@ def _binarize_column(series: pd.Series, rule: dict) -> pd.Series:
         return (series == pos).astype(int)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Tool 1 — identify_sensitive
-# ─────────────────────────────────────────────────────────────────────────────
+#
 
 @tool
 def identify_sensitive(dataset_path: str, dataset_name: str = "") -> str:
@@ -215,13 +218,42 @@ def identify_sensitive(dataset_path: str, dataset_name: str = "") -> str:
     if n_skipped_v:
         print(f"[info] Skipped {n_skipped_v} raw survey-code columns from LLM schema (V-prefixed)")
 
-    # Cap schema at 40 columns — keep the first 40 (demographics / pre-departure
-    # variables come first; outcome/index columns come last).
+    inferred_key = _infer_dataset_key(dataset_path, dataset_name, df.columns)
+    if inferred_key and dataset_name and inferred_key not in dataset_name.lower():
+        print(f"[info] dataset name/path mismatch detected. Using inferred schema hint '{inferred_key}'.")
+
+    # Per-dataset hardcoded fallbacks (used if the LLM fails or picks wrong cols).
+    # Defined here (before schema trimming) so we can also use them to keep the
+    # known target/sensitive columns visible in very wide files.
+    fallbacks = {
+        "adult":   {"sensitive_attrs": ["sex", "race"], "binarization_rules": {"sex": {"positive_value": "Male"}, "race": {"positive_value": "White"}}, "target_col": "income", "columns_to_drop": ["fnlwgt", "education-num"], "justification": "fallback"},
+        "german":  {"sensitive_attrs": ["Sex", "Age"], "binarization_rules": {"Sex": {"positive_value": "male"}, "Age": {"threshold": 25}}, "target_col": "Class", "columns_to_drop": ["Unnamed: 0"], "justification": "fallback"},
+        "compas":  {"sensitive_attrs": ["race", "sex"], "binarization_rules": {"race": {"positive_value": "Caucasian"}, "sex": {"positive_value": "Male"}}, "target_col": "two_year_recid", "columns_to_drop": ["id", "name", "first", "last", "dob", "c_case_number", "r_case_number", "vr_case_number", "compas_screening_date", "c_jail_in", "c_jail_out", "r_offense_date", "r_jail_in", "r_jail_out", "vr_offense_date", "screening_date", "v_screening_date", "in_custody", "out_custody", "c_offense_date", "c_arrest_date", "is_recid", "is_violent_recid", "decile_score", "decile_score.1", "score_text", "v_decile_score", "v_score_text", "priors_count.1"], "justification": "fallback"},
+        "utkface": {"sensitive_attrs": ["ethnicity", "gender"], "binarization_rules": {"ethnicity": {"positive_value": 0}, "gender": {"positive_value": 0}}, "target_col": "age", "columns_to_drop": ["img_name", "pixels"], "justification": "fallback"},
+        "kdd":     {"sensitive_attrs": ["race", "sex"], "binarization_rules": {"race": {"positive_value": "White"}, "sex": {"positive_value": "Male"}}, "target_col": "income", "columns_to_drop": ["instance_weight"], "justification": "fallback"},
+        "bank":    {"sensitive_attrs": ["age"], "binarization_rules": {"age": {"threshold": 40}}, "target_col": "y", "columns_to_drop": [], "justification": "fallback"},
+        "acs":     {"sensitive_attrs": ["RAC1P", "SEX"], "binarization_rules": {"RAC1P": {"positive_value": 1}, "SEX": {"positive_value": 1}}, "target_col": "PINCP", "columns_to_drop": ["RT", "SERIALNO", "SPORDER", "PUMA", "ADJINC", "PWGTP"] + [f"PWGTP{i}" for i in range(1, 81)], "justification": "fallback"},
+    }
+
+    # Cap schema at 40 columns to keep the prompt small. For most datasets the
+    # demographics/target sit up front, so the first 40 are enough. BUT some wide
+    # files put them late — ACS PUMS (286 cols) has SEX@68, PINCP@103, RAC1P@111
+    # and KDD has income@41 — so we ALWAYS additionally keep the recognized
+    # dataset's target + sensitive columns. Without this the LLM never sees them
+    # and cannot possibly pick them (and the guardrails can't catch it because the
+    # wrong-but-existing target it picks instead passes the "exists" check).
     MAX_SCHEMA_COLS = 40
     if len(visible_cols) > MAX_SCHEMA_COLS:
-        n_trimmed = len(visible_cols) - MAX_SCHEMA_COLS
-        visible_cols = visible_cols[:MAX_SCHEMA_COLS]
-        print(f"[info] Schema trimmed to first {MAX_SCHEMA_COLS} columns ({n_trimmed} later columns hidden)")
+        head     = visible_cols[:MAX_SCHEMA_COLS]
+        fb       = fallbacks.get(inferred_key, {})
+        must_keep = [fb.get("target_col")] + list(fb.get("sensitive_attrs", []))
+        extra    = [c for c in visible_cols[MAX_SCHEMA_COLS:] if c in must_keep]
+        n_trimmed = len(visible_cols) - len(head) - len(extra)
+        visible_cols = head + extra
+        msg = f"[info] Schema trimmed to first {MAX_SCHEMA_COLS} columns ({n_trimmed} later columns hidden)"
+        if extra:
+            msg += f"; kept key columns out of order: {extra}"
+        print(msg)
 
     # Compact format: 1 sample value per column keeps the prompt short
     schema_str = ""
@@ -229,11 +261,41 @@ def identify_sensitive(dataset_path: str, dataset_name: str = "") -> str:
         sample = df[col].dropna().iloc[0] if df[col].dropna().shape[0] > 0 else "N/A"
         schema_str += f"  - {col}: {sample}\n"
 
-    inferred_key = _infer_dataset_key(dataset_path, dataset_name, df.columns)
-    if inferred_key and dataset_name and inferred_key not in dataset_name.lower():
-        print(f"[info] dataset name/path mismatch detected. Using inferred schema hint '{inferred_key}'.")
-
     prompt_dataset_name = inferred_key or dataset_name or "unknown"
+
+    # How many sensitive attributes to request, per dataset (user spec):
+    #   migration -> 3, bank -> 1 (age only), everything else (incl. uploads) -> 2.
+    _N_SENSITIVE = {"migration": 3, "bank": 1}
+    n_sensitive = _N_SENSITIVE.get(inferred_key, 2)
+
+    # Count-specific guidance for step 2 of the prompt.
+    if n_sensitive == 1:
+        sens_guidance = (
+            "   - Choose THE SINGLE most important sensitive attribute "
+            "(typically age; otherwise gender/sex).\n"
+        )
+    elif n_sensitive == 3:
+        sens_guidance = (
+            "   - Choose 3 attributes that span DIFFERENT demographic dimensions — "
+            "ideally one from each category:\n"
+            "       (a) Gender / sex\n"
+            "       (b) Geographic origin (region, province, coast of birth)\n"
+            "       (c) Socioeconomic background (education level, class, or occupation)\n"
+            "   - Do NOT pick two attributes that measure the same underlying concept "
+            "(e.g. not two geographic-origin columns).\n"
+        )
+    else:  # 2
+        sens_guidance = (
+            "   - Choose the 2 most important sensitive attributes, from DIFFERENT "
+            "dimensions (e.g. gender/sex AND race/ethnicity, or gender AND age).\n"
+            "   - Do NOT pick two attributes that measure the same underlying concept.\n"
+        )
+
+    # JSON example with exactly n_sensitive placeholders.
+    _ex_attrs = ", ".join(f'"col{i+1}"' for i in range(n_sensitive))
+    _ex_rules = ",\n".join(
+        f'    "col{i+1}": {{"positive_value": "value"}}' for i in range(n_sensitive)
+    )
 
     prompt = f"""You are a fairness-aware ML expert analyzing a dataset for bias correction.
 
@@ -247,19 +309,15 @@ Your task:
    - NOT a good target: geographic destination, travel route, country visited, or any column that is itself a sensitive demographic attribute.
    - The target should be something a classifier predicts to make a decision ABOUT the person.
 
-2. Identify SENSITIVE/PROTECTED ATTRIBUTES — pre-existing personal demographic characteristics the person was born with or had BEFORE the event being studied, and that should NOT influence the prediction.
-   - Good examples: gender/sex, region/province/coast of BIRTH or ORIGIN (where they came from), education level category at the time of migration, ethnicity, religion.
+2. Identify EXACTLY {n_sensitive} SENSITIVE/PROTECTED ATTRIBUTE(S) — pre-existing personal demographic characteristics the person was born with or had BEFORE the event being studied, and that should NOT influence the prediction.
+   - Good examples: gender/sex, region/province/coast of BIRTH or ORIGIN (where they came from), education level category at the time of migration, ethnicity, religion, age.
    - NOT sensitive:
      * "current" columns (current country, current city, current job) — these are POST-event outcomes or choices, not pre-existing traits.
      * destination country or country of residence — this is where someone ended up, not where they came from.
      * computed index or score columns (quality indices, benefit sums, composite scores).
      * binary flag derivations of an attribute already in your list (e.g., if you pick an education-level column, do NOT also pick a "has_higher_educ" binary flag).
-   - Choose 3 attributes that span DIFFERENT demographic dimensions — ideally one from each category:
-       (a) Gender / sex
-       (b) Geographic origin (where the person comes from — region, province, coast of birth)
-       (c) Socioeconomic background (education level, class, or occupation category)
-   - Do NOT pick two attributes that measure the same underlying concept (e.g., do not pick two geographic origin columns, do not pick two education-related columns).
-   - If both an original multi-category column AND a binary derived version of the same concept are present, prefer the original categorical column (e.g., prefer an education-level category over a binary "has higher education" flag).
+{sens_guidance}   - If both an original multi-category column AND a binary derived version of the same concept are present, prefer the original categorical column (e.g., prefer an education-level category over a binary "has higher education" flag).
+   - Return EXACTLY {n_sensitive} attribute(s) in "sensitive_attrs" — no more, no fewer.
 
 3. For each sensitive attr, define a binarization rule: either {{"positive_value": "<value>"}} for categorical or {{"threshold": <number>}} for numeric.
 
@@ -267,26 +325,14 @@ Your task:
 
 Respond with ONLY this JSON (no prose):
 {{
-  "sensitive_attrs": ["col1", "col2", "col3"],
+  "sensitive_attrs": [{_ex_attrs}],
   "binarization_rules": {{
-    "col1": {{"positive_value": "Male"}},
-    "col2": {{"threshold": 25}},
-    "col3": {{"positive_value": "value"}}
+{_ex_rules}
   }},
   "target_col": "column_name",
   "columns_to_drop": ["id_col", "name_col"],
   "justification": "brief reason"
 }}"""
-
-    fallbacks = {
-        "adult":   {"sensitive_attrs": ["sex", "race"], "binarization_rules": {"sex": {"positive_value": "Male"}, "race": {"positive_value": "White"}}, "target_col": "income", "columns_to_drop": ["fnlwgt", "education-num"], "justification": "fallback"},
-        "german":  {"sensitive_attrs": ["Sex", "Age"], "binarization_rules": {"Sex": {"positive_value": "male"}, "Age": {"threshold": 25}}, "target_col": "Class", "columns_to_drop": ["Unnamed: 0"], "justification": "fallback"},
-        "compas":  {"sensitive_attrs": ["race", "sex"], "binarization_rules": {"race": {"positive_value": "Caucasian"}, "sex": {"positive_value": "Male"}}, "target_col": "two_year_recid", "columns_to_drop": ["id", "name", "first", "last", "dob", "c_case_number", "r_case_number", "vr_case_number", "compas_screening_date", "c_jail_in", "c_jail_out", "r_offense_date", "r_jail_in", "r_jail_out", "vr_offense_date", "screening_date", "v_screening_date", "in_custody", "out_custody", "c_offense_date", "c_arrest_date"], "justification": "fallback"},
-        "utkface": {"sensitive_attrs": ["ethnicity", "gender"], "binarization_rules": {"ethnicity": {"positive_value": 0}, "gender": {"positive_value": 0}}, "target_col": "age", "columns_to_drop": ["img_name", "pixels"], "justification": "fallback"},
-        "kdd":     {"sensitive_attrs": ["race", "sex"], "binarization_rules": {"race": {"positive_value": "White"}, "sex": {"positive_value": "Male"}}, "target_col": "income", "columns_to_drop": ["instance_weight"], "justification": "fallback"},
-        "bank":    {"sensitive_attrs": ["age", "marital"], "binarization_rules": {"age": {"threshold": 40}, "marital": {"positive_value": "married"}}, "target_col": "y", "columns_to_drop": [], "justification": "fallback"},
-        "acs":     {"sensitive_attrs": ["RAC1P", "SEX"], "binarization_rules": {"RAC1P": {"positive_value": 1}, "SEX": {"positive_value": 1}}, "target_col": "PINCP", "columns_to_drop": ["RT", "SERIALNO", "SPORDER", "PUMA", "ADJINC", "PWGTP"] + [f"PWGTP{i}" for i in range(1, 81)], "justification": "fallback"},
-    }
 
     fallback_key = inferred_key or _infer_dataset_key("", dataset_name, [])
 
@@ -307,26 +353,33 @@ Respond with ONLY this JSON (no prose):
             if a in known_drop or str(a).startswith("PWGTP")
         ]
 
-        if (target_missing or bad_attrs) and fallback_key in fallbacks:
+        # Guardrail 3: target must not be a known-drop or weight column.
+        # ACS: LLM sometimes picks PWGTP (person weight) instead of PINCP.
+        proposed_target = str(result.get("target_col", "")).strip()
+        bad_target = proposed_target in known_drop or proposed_target.startswith("PWGTP")
+
+        if (target_missing or bad_target or bad_attrs) and fallback_key in fallbacks:
             print("\n" + "!" * 60)
             print(f"  LLM FAILED — dataset: {fallback_key.upper()}")
             if target_missing:
                 print(f"     Wrong target column : '{result.get('target_col')}' not in dataset")
+            if bad_target:
+                print(f"     Bad target column   : '{proposed_target}' is a weight/drop column")
             if bad_attrs:
                 print(f"     Wrong sensitive attrs: {bad_attrs}")
                 print(f"     (picked weight/ID columns instead of demographic ones)")
-            print(f"  → Using hardcoded fallback: {fallbacks[fallback_key]['sensitive_attrs']}")
+            print(f"  -> Using hardcoded fallback: {fallbacks[fallback_key]['sensitive_attrs']}")
             print("!" * 60 + "\n")
             result = fallbacks[fallback_key]
         else:
-            print(f"[llm] identify_sensitive OK → {result.get('sensitive_attrs')} | target={result.get('target_col')}")
+            print(f"[llm] identify_sensitive OK -> {result.get('sensitive_attrs')} | target={result.get('target_col')}")
     except Exception as e:
         matched = fallbacks.get(fallback_key)
         if matched:
             print("\n" + "!" * 60)
-            print(f"  ⚠  LLM EXCEPTION — dataset: {fallback_key.upper()}")
+            print(f"  [!] LLM EXCEPTION — dataset: {fallback_key.upper()}")
             print(f"     Error: {e}")
-            print(f"  → Using hardcoded fallback: {matched['sensitive_attrs']}")
+            print(f"  -> Using hardcoded fallback: {matched['sensitive_attrs']}")
             print("!" * 60 + "\n")
             result = matched
         else:
@@ -334,6 +387,62 @@ Respond with ONLY this JSON (no prose):
                 f"LLM failed for '{dataset_name}' and no fallback exists.\n"
                 f"  Cause: {type(e).__name__}: {e}"
             )
+
+    # Enforce the required number of sensitive attributes for this dataset.
+    # (migration=3, bank=1, others=2). Trim if the LLM returned too many.
+    sa = result.get("sensitive_attrs", [])
+    if len(sa) > n_sensitive:
+        kept = sa[:n_sensitive]
+        print(f"[guardrail] LLM returned {len(sa)} sensitive attrs; keeping first "
+              f"{n_sensitive}: {kept}")
+        result["sensitive_attrs"] = kept
+        rules = result.get("binarization_rules", {})
+        result["binarization_rules"] = {a: rules[a] for a in kept if a in rules}
+    elif len(sa) < n_sensitive:
+        print(f"[guardrail] WARNING: expected {n_sensitive} sensitive attrs but LLM "
+              f"returned {len(sa)}: {sa} — proceeding with what was returned.")
+
+    # Guardrail: the LLM sometimes fuses a column name and its positive value into
+    # one string, e.g. "race: White" or "sex=Female", instead of returning the bare
+    # column name "race" with a separate binarization rule. Split these back out so
+    # the column lookup in load_dataset succeeds. The trailing value, if present and
+    # the attr has no rule yet, becomes the positive_value of its binarization rule.
+    normalized_cols = {str(c).strip() for c in df.columns}
+
+    def _split_col_value(token: str):
+        """'race: White' -> ('race', 'White'); 'race' -> ('race', None)."""
+        t = str(token).strip()
+        if t in normalized_cols:
+            return t, None
+        for sep in (":", "="):
+            if sep in t:
+                col, val = t.split(sep, 1)
+                col, val = col.strip(), val.strip()
+                if col in normalized_cols:
+                    return col, (val or None)
+        return t, None   # leave unchanged if we can't resolve it
+
+    rules = dict(result.get("binarization_rules", {}) or {})
+    clean_attrs = []
+    for attr in result.get("sensitive_attrs", []):
+        col, val = _split_col_value(attr)
+        clean_attrs.append(col)
+        if col != attr:
+            rule = rules.pop(attr, None) or rules.get(col)
+            if rule is None and val is not None:
+                rule = {"positive_value": val}
+            if rule is not None:
+                rules[col] = rule
+            print(f"[guardrail] normalized sensitive attr '{attr}' -> column '{col}'"
+                  + (f" (positive_value='{val}')" if val is not None else ""))
+    result["sensitive_attrs"] = clean_attrs
+    result["binarization_rules"] = rules
+
+    # Same fix for the target column ("income: >50K" -> "income").
+    tgt_col, _ = _split_col_value(result.get("target_col", ""))
+    if tgt_col != str(result.get("target_col", "")).strip():
+        print(f"[guardrail] normalized target '{result.get('target_col')}' -> '{tgt_col}'")
+        result["target_col"] = tgt_col
 
     # Store in global state
     state.sensitive_attrs = result["sensitive_attrs"]
@@ -346,9 +455,7 @@ Respond with ONLY this JSON (no prose):
     return json.dumps(result, indent=2)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Tool 2 — load_dataset
-# ─────────────────────────────────────────────────────────────────────────────
 
 @tool
 def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
@@ -370,8 +477,9 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
     if not state.target_col:
         return "ERROR: Call identify_sensitive first to set target_col and sensitive_attrs."
 
-    # ── Load raw CSV ──────────────────────────────────────────────────────────
+    # Load raw CSV
     load_kwargs = dict(skipinitialspace=True, na_values=["?", "NA", "N/A", ""])
+
     try:
         df = pd.read_csv(dataset_path, **load_kwargs)
         # Detect accidental single-column load caused by wrong separator
@@ -423,13 +531,13 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
 
     df.columns = [str(c).strip() for c in df.columns]
 
-    # ── Migration: drop all raw survey code columns (V-prefixed) ─────────────
+    # Migration: drop all raw survey code columns (V-prefixed)
     if state.dataset_name == "migration":
         v_cols = [c for c in df.columns if re.match(r'^V\d', c)]
         df.drop(columns=v_cols, inplace=True, errors='ignore')
         print(f"[info] Migration: dropped {len(v_cols)} raw survey code columns (V-prefixed)")
 
-    # ── UTKFace: expand space-separated pixel string into pixel_0…pixel_N cols ─
+    # UTKFace: expand space-separated pixel string into pixel_0…pixel_N cols
     if "pixels" in df.columns:
         print("[info] Detected 'pixels' column — expanding into individual pixel features...")
         # Parse each row directly to float32 via numpy — avoids a large object DataFrame
@@ -443,14 +551,14 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
         # Remove "pixels" from drop list since we already handled it
         state.columns_to_drop = [c for c in state.columns_to_drop if c != "pixels"]
 
-    # ── Drop irrelevant columns ───────────────────────────────────────────────
+    # Drop irrelevant columns
     drop_cols = [c for c in state.columns_to_drop if c in df.columns]
     df.drop(columns=drop_cols, inplace=True)
 
-    # ── Drop rows with missing target ─────────────────────────────────────────
+    # Drop rows with missing target
     df.dropna(subset=[state.target_col], inplace=True)
 
-    # ── Binarize target ───────────────────────────────────────────────────────
+    # Binarize target
     target_series = df[state.target_col].str.strip() if df[state.target_col].dtype == object else df[state.target_col]
     unique_targets = sorted(target_series.dropna().unique())
     if len(unique_targets) == 2:
@@ -473,7 +581,7 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
 
     df.drop(columns=[state.target_col], inplace=True)
 
-    # ── Extract and binarize sensitive attributes ─────────────────────────────
+    # Extract and binarize sensitive attributes
     sensitive_cols = []
     for attr in state.sensitive_attrs:
         if attr not in df.columns:
@@ -487,9 +595,16 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
         sensitive_cols.append(s_bin.values)
         df.drop(columns=[attr], inplace=True)
 
+    if not sensitive_cols:
+        return (
+            "ERROR: none of the sensitive attributes "
+            f"{state.sensitive_attrs} were found among the dataset columns "
+            f"{df.columns.tolist()}. Check identify_sensitive output / fallback."
+        )
+
     sensitive_matrix = np.stack(sensitive_cols, axis=1)  # (N, n_sensitive)
 
-    # ── Drop high-cardinality string columns (IDs, free text, charge descriptions)
+    # Drop high-cardinality string columns (IDs, free text, charge descriptions)
     # Use two thresholds:
     #   > MAX_UNIQUE_ABS  unique values → always drop (e.g. case numbers, descriptions)
     #   > MAX_UNIQUE_FRAC of rows       → drop (e.g. dates unique per row)
@@ -501,13 +616,13 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
             df.drop(columns=[col], inplace=True)
             print(f"[info] Dropped high-cardinality column: {col} ({n_unique} unique)")
 
-    # ── Fill remaining missing values ─────────────────────────────────────────
+    # Fill remaining missing values
     for col in df.select_dtypes(include="object").columns:
         df[col] = df[col].str.strip().fillna("Unknown")
     for col in df.select_dtypes(include="number").columns:
         df[col] = df[col].fillna(df[col].median())
 
-    # ── Subsample very large datasets to cap memory and training time ─────────
+    # Subsample very large datasets to cap memory and training time
     MAX_SAMPLES = 100_000
     if len(df) > MAX_SAMPLES:
         rng = np.random.default_rng(42)
@@ -518,14 +633,14 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
         sensitive_matrix = sensitive_matrix[keep]
         print(f"[info] Subsampled to {MAX_SAMPLES} rows (was {len(keep) + (len(y) - MAX_SAMPLES)})")
 
-    # ── One-hot encode categoricals ───────────────────────────────────────────
+    # One-hot encode categoricals
     df = pd.get_dummies(df, drop_first=True)
 
     # Convert directly to float32 — avoids an intermediate float64 allocation
     X = df.to_numpy(dtype=np.float32, na_value=0.0)
     state.feature_names = df.columns.tolist()
 
-    # ── Train/test split ──────────────────────────────────────────────────────
+    # Train/test split
     idx = np.arange(len(X))
     train_idx, test_idx = train_test_split(idx, test_size=0.2, random_state=42, stratify=y)
 
@@ -543,7 +658,7 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
         X_te = X_te[:, valid_cols]
         state.feature_names = [n for n, v in zip(state.feature_names, valid_cols) if v]
 
-    # ── Normalize features ────────────────────────────────────────────────────
+    # Normalize features
     scaler = StandardScaler()
     X_tr = scaler.fit_transform(X_tr).astype(np.float32)
     X_te = scaler.transform(X_te).astype(np.float32)
@@ -560,7 +675,7 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
         print(f"[data] Class imbalance detected: pos_weight={state.pos_weight:.2f} "
               f"({n_pos:.0f} pos / {n_neg:.0f} neg) — will use weighted loss")
 
-    # ── Convert to tensors ────────────────────────────────────────────────────
+    # Convert to tensors
     dev = state.device
     state.X_train = torch.tensor(X_tr, dtype=torch.float32).to(dev)
     state.X_test  = torch.tensor(X_te, dtype=torch.float32).to(dev)

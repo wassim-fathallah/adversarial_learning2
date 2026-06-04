@@ -21,14 +21,14 @@ Thumbs.db
 .vscode/
 .idea/
 
-# ── Datasets (too large — download from Dropbox, see README) ──────────────────
+# Datasets (too large — download from Dropbox, see README)
 adversarial_fairness/datasets/
 fair_fairness_benchmark/datasets/
 
-# ── FFB junk ──────────────────────────────────────────────────────────────────
+# FFB junk
 fair_fairness_benchmark/src/wandb/
 fair_fairness_benchmark/img/
 wandb/
 
-# ── FFB results — all included in repo (small, final-step only) ───────────────
+# FFB results — all included in repo (small, final-step only)
 # Nothing excluded here — all results/*.json are committed

@@ -20,7 +20,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import plotly.express as px
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
+# Paths
 ROOT        = os.path.dirname(os.path.abspath(__file__))
 MY_MEMORY   = os.path.join(ROOT, "adversarial_fairness", "long_term_memory.json")
 FFB_RESULTS = os.path.join(ROOT, "fair_fairness_benchmark", "results")
@@ -31,7 +31,7 @@ st.set_page_config(page_title="Fairness Dashboard", page_icon="⚖️", layout="
 st.title("⚖️ Adversarial Fairness — Thesis Dashboard")
 
 
-# ── Data loaders ──────────────────────────────────────────────────────────────
+# Data loaders
 
 @st.cache_data(ttl=10)
 def load_my_memory():
@@ -56,7 +56,7 @@ def load_ffb_results():
     return results
 
 
-# ── Helpers — My System ───────────────────────────────────────────────────────
+# Helpers — My System
 
 def group_by_dataset(memory: dict):
     groups = defaultdict(list)
@@ -153,7 +153,7 @@ def show_my_run_summary(run):
     st.caption(f"{ts} | Iterations: {iters} | {'✅ SUCCESS' if success else '🔄 Not yet'}")
 
 
-# ── Helpers — FFB ─────────────────────────────────────────────────────────────
+# Helpers — FFB
 
 UTILITY_METRICS  = ["acc", "ap", "auc", "f1"]
 FAIRNESS_METRICS = ["dp", "eopp", "eodd", "abcc", "prule"]
@@ -187,9 +187,93 @@ def ffb_history_df(results_list):
     return pd.DataFrame(rows)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# Max-Acc / Max-Prule extraction (mirrors compare_ffb.py)
+
+# How to read "Ours" out of long_term_memory.json, per FFB dataset name.
+#   key      : memory key to use   attr_map: {ours_attr_in_memory : ffb_attr}
+OURS_CONFIG = {
+    "adult":          {"key": "adult|income|race,sex",
+                       "attr_map": {"race": "race", "sex": "sex"}},
+    "compas":         {"key": "compas|two_year_recid|race,sex",
+                       "attr_map": {"race": "race", "sex": "sex"}},
+    "german":         {"key": "german|Class|Age,Sex",
+                       "attr_map": {"Age": "age", "Sex": "sex"}},
+    "bank_marketing": {"key": "bank|y|age,marital",
+                       "attr_map": {"age": "age"}},
+    "utkface":        {"key": "utkface|age|ethnicity,gender",
+                       "attr_map": {"gender": "Gender", "ethnicity": "Race"}},
+    "migration":      {"key": "migration|legal_entry|Gender,coastal_origin,educ_level",
+                       "attr_map": {"Gender": "sex",
+                                    "coastal_origin": "coastal_origin",
+                                    "educ_level": "educ_level"}},
+}
+
+
+def selection_table(df_final, my_memory, ffb_dataset, ffb_attr):
+    """
+    For the given (dataset, attribute) and a per-(method,lam,seed) metrics frame,
+    return a DataFrame with, per method, the Max-Acc and Max-Prule operating
+    points (mean over seeds) plus DP/EOdd/EOpp at those points, and an Ours row.
+    """
+    def _num(v):
+        return round(float(v), 2) if pd.notna(v) else None
+
+    rows = []
+    for method in sorted(df_final["method"].unique()):
+        sub = df_final[df_final["method"] == method]
+        g = (sub.groupby("lam")[["acc", "prule", "dp", "eodd", "eopp"]]
+                .mean().reset_index().dropna(subset=["acc"]))
+        if g.empty:
+            continue
+        # Drop degenerate collapse points (P-rule~100 with all gaps ~0 = the
+        # majority-class predictor). Keep all only if nothing else remains.
+        degenerate = ((g["prule"] >= 99.0) & (g["dp"] < 0.5)
+                      & (g["eodd"] < 0.5) & (g["eopp"] < 0.5))
+        gg = g[~degenerate] if (~degenerate).any() else g
+        la = gg.loc[gg["acc"].idxmax()]
+        gp = gg.dropna(subset=["prule"])
+        lp = gp.loc[gp["prule"].idxmax()] if not gp.empty else la
+        # Trade-off: highest min(acc, prule) — best balanced point (both>=80 if
+        # attainable, else closest to the 80/80 corner)
+        if not gp.empty:
+            lt = gp.loc[gp[["acc", "prule"]].min(axis=1).idxmax()]
+        else:
+            lt = la
+
+        def mk(label, r):
+            return {"Method": method, "Select": label,
+                    "Acc": _num(r["acc"]), "P-rule": _num(r["prule"]),
+                    "ΔDP": _num(r["dp"]), "ΔEOdd": _num(r["eodd"]),
+                    "ΔEOpp": _num(r["eopp"])}
+
+        # Always 3 rows per method: Max-Acc, Max-Prule, Trade-off (no merging)
+        rows.append(mk("Max-Acc", la))
+        rows.append(mk("Max-Prule", lp))
+        rows.append(mk("Trade-off", lt))
+
+    # Ours row for this dataset/attribute 
+    cfg = OURS_CONFIG.get(ffb_dataset)
+    if cfg:
+        runs = my_memory.get(cfg["key"])
+        ours_attr = next((oa for oa, fa in cfg["attr_map"].items() if fa == ffb_attr), None)
+        if runs and ours_attr:
+            run = runs[-1]
+            prules = run.get("p_rules_final", {})
+            if ours_attr in prules:
+                fair = run.get("fairness_final", {}).get(ours_attr, {})
+                rows.append({
+                    "Method": "Ours",
+                    "Select": "Final" if run.get("success") else "Best",
+                    "Acc": _num(run.get("accuracy_final", 0) * 100),
+                    "P-rule": _num(prules[ours_attr]),
+                    "ΔDP": _num(fair.get("dp")) if fair.get("dp") is not None else None,
+                    "ΔEOdd": _num(fair.get("eodd")) if fair.get("eodd") is not None else None,
+                    "ΔEOpp": _num(fair.get("eopp")) if fair.get("eopp") is not None else None,
+                })
+    return pd.DataFrame(rows)
+
+
 # TABS
-# ══════════════════════════════════════════════════════════════════════════════
 
 tab_my, tab_ffb = st.tabs([
     "⚙️ Agentic Adversarial Debiasing",
@@ -197,11 +281,11 @@ tab_my, tab_ffb = st.tabs([
 ])
 
 
-# ── TAB 1 : Agentic Adversarial Debiasing ────────────────────────────────────
+# TAB 1 : Agentic Adversarial Debiasing
 
 with tab_my:
 
-    # ── Upload & Train ────────────────────────────────────────────────────────
+    # Upload & Train
     with st.expander("Apply AAD on a new dataset", expanded=False):
         uploaded_files = st.file_uploader(
             "Upload dataset file(s) — .csv, .data, .tsv, .txt or any tabular format. "
@@ -312,7 +396,7 @@ with tab_my:
                                         key=f"my_{ds_name}_{i}")
 
 
-# ── TAB 2 : FFB Benchmark ─────────────────────────────────────────────────────
+# TAB 2 : FFB Benchmark
 
 with tab_ffb:
     col_ref, col_dl, _ = st.columns([1, 2, 6])
@@ -322,13 +406,81 @@ with tab_ffb:
 
     col_dl.info("To load more methods: `python download_ffb_wandb.py`", icon="💡")
 
+    # Upload a dataset and run the FFB methods on it
+    with st.expander("🧪 Run FFB methods on your own dataset (upload)", expanded=False):
+        up = st.file_uploader("Upload a tabular CSV", type=["csv"], key="ffb_gen_upload")
+        if up is not None:
+            try:
+                head = pd.read_csv(up, nrows=200)
+                cols = list(head.columns)
+            except Exception as e:
+                st.error(f"Could not read CSV: {e}")
+                cols = []
+
+            if cols:
+                gc1, gc2 = st.columns(2)
+                gen_target = gc1.selectbox("Target column (what to predict)", cols, key="ffb_gen_target")
+                gen_sens   = gc2.multiselect(
+                    "Sensitive column(s) — one FFB sweep is run per attribute",
+                    [c for c in cols if c != gen_target], key="ffb_gen_sens")
+
+                mc1, mc2, mc3 = st.columns(3)
+                gen_methods = mc1.multiselect("Methods", ["erm", "adv", "laftr", "hsic", "pr"],
+                                              default=["erm", "adv", "laftr", "hsic", "pr"],
+                                              key="ffb_gen_methods")
+                gen_seeds = mc2.selectbox("Seeds", ["Full (10)", "Quick (1 — smoke test)"],
+                                          index=0, key="ffb_gen_seeds")
+                run_gen = mc3.button("▶ Run FFB sweep", type="primary",
+                                     disabled=not (gen_sens and gen_methods))
+
+                st.caption("⚠️ A full sweep (10 seeds, all λ) can take **hours** on CPU. "
+                           "Use 'Quick' first to verify it works.")
+
+                if run_gen and gen_sens and gen_methods:
+                    gdir = os.path.join(ROOT, "fair_fairness_benchmark", "datasets", "generic")
+                    os.makedirs(gdir, exist_ok=True)
+                    up.seek(0)
+                    with open(os.path.join(gdir, "data.csv"), "wb") as fh:
+                        fh.write(up.read())
+                    json.dump({"csv_name": "data.csv", "target_attr": gen_target,
+                               "sensitive_attrs": gen_sens, "drop_cols": []},
+                              open(os.path.join(gdir, "config.json"), "w"), indent=2)
+
+                    python = os.path.join(ROOT, "adversarial_fairness", ".venv", "Scripts", "python.exe")
+                    if not os.path.exists(python):
+                        python = sys.executable
+                    cmd = [python, "run_generic_sweep.py", "--methods", ",".join(gen_methods),
+                           "--sensitive_attrs", ",".join(gen_sens)]
+                    if gen_seeds.startswith("Quick"):
+                        cmd += ["--seeds", "42"]
+
+                    st.info(f"Running {len(gen_methods)} method(s) on {len(gen_sens)} "
+                            f"attribute(s). Results stream below.")
+                    log_box, logs = st.empty(), []
+                    with st.spinner("FFB sweep running…"):
+                        proc = subprocess.Popen(
+                            cmd, cwd=os.path.join(ROOT, "fair_fairness_benchmark"),
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, encoding="utf-8", errors="replace",
+                            env={**os.environ, "WANDB_MODE": "disabled"})
+                        for line in proc.stdout:
+                            logs.append(line.rstrip())
+                            log_box.code("\n".join(logs[-30:]))
+                        proc.wait()
+                    if proc.returncode == 0:
+                        st.success("✅ FFB sweep complete. Select dataset **generic** in the "
+                                   "filters below to see the results.")
+                        st.cache_data.clear()
+                    else:
+                        st.error("❌ Sweep failed — check the log above.")
+
     ffb_all = load_ffb_results()
 
     if not ffb_all:
         st.warning(f"No FFB results found in `{FFB_RESULTS}`.")
         st.code("python download_ffb_wandb.py --quick")
     else:
-        # ── Filters inside the tab (not sidebar) ──────────────────────────────
+        # Filters inside the tab (not sidebar)
         st.markdown("#### Filters")
         fc1, fc2, fc3, fc4 = st.columns(4)
 
@@ -367,7 +519,10 @@ with tab_ffb:
                        f"Run `python download_ffb_wandb.py` to fetch more data.")
         else:
             st.caption(f"{len(filtered)} runs loaded")
-            ft1, ft2, ft3 = st.tabs(["Metrics Table", "Training Curves", "Utility-Fairness Scatter"])
+            ft1, ft2, ft3, ft4 = st.tabs([
+                "Metrics Table", "Training Curves",
+                "Utility-Fairness Scatter", "Max-Acc / Max-Prule",
+            ])
 
             with ft1:
                 st.subheader("Final Test Metrics")
@@ -426,5 +581,34 @@ with tab_ffb:
                         st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("Not enough metric columns for scatter plot.")
+
+            with ft4:
+                st.subheader(f"Max-Acc / Max-Prule — {sel_ds} / {sel_sens}")
+                st.caption(
+                    "Per method: the λ that maximizes **accuracy** and the λ that "
+                    "maximizes **P-rule** (mean over the selected seeds). ΔDP / ΔEOdd / "
+                    "ΔEOpp are the fairness gaps at that operating point (lower is "
+                    "fairer). Single-λ methods (ERM/LAFTR) show one **Single** row. "
+                    "**Ours** is our adaptive method's single operating point "
+                    "(Final if the stop condition was reached, else Best). All values in %."
+                )
+                my_mem  = load_my_memory()
+                df_sel  = selection_table(ffb_final_df(filtered), my_mem, sel_ds, sel_sens)
+                if df_sel.empty:
+                    st.info("No operating points to show for this selection.")
+                else:
+                    def _hl_ours(row):
+                        return ["background-color: #fff3cd" if row["Method"] == "Ours" else ""
+                                for _ in row]
+                    st.dataframe(
+                        df_sel.style.apply(_hl_ours, axis=1)
+                              .format({c: "{:.2f}" for c in ["Acc", "P-rule", "ΔDP", "ΔEOdd", "ΔEOpp"]},
+                                      na_rep="—"),
+                        use_container_width=True, hide_index=True,
+                    )
+                    if (df_sel["Method"] == "Ours").any() and \
+                       df_sel.loc[df_sel["Method"] == "Ours", "ΔDP"].isna().all():
+                        st.caption("ℹ️ Ours ΔDP/ΔEOdd/ΔEOpp are blank — re-run that dataset "
+                                   "to persist them (older runs only stored Acc + P-rule).")
 
 

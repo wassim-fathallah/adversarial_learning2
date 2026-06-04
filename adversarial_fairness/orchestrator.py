@@ -4,11 +4,10 @@ Orchestrator — runs the 5-step adversarial fairness pipeline in sequence.
 The pipeline order is always fixed, so we call tools directly rather than
 using a ReAct agent (local LLMs via Ollama are unreliable with tool-calling).
 
-LLM is still used for:
+LLM is used for:
   - identify_sensitive: reads dataset schema → sensitive attrs + binarization rules
-  - decide_initial_lambda: reads dataset schema → conservative warm-start λ
-  - detect_proxies: interprets proxy features semantically
-  - decide_lambda_for_iteration: LCEL chain, called per training iteration
+  - decide_initial_lambda: fingerprint warm-start from long-term memory, else zero
+  All other steps (lambda update, training, evaluation) are deterministic.
 """
 
 import json
@@ -28,6 +27,7 @@ def run_pipeline(
     p_rule_threshold: float = 80.0,
     initial_epochs: int = 10,
     device: str = None,
+    target_override: str = None,
 ) -> dict:
     """
     Run the full fairness correction pipeline.
@@ -52,6 +52,18 @@ def run_pipeline(
     print(SEP)
     result1 = identify_sensitive.invoke({"dataset_path": dataset_path, "dataset_name": name})
     schema = json.loads(result1)
+
+    if target_override:
+        if target_override in state.sensitive_attrs:
+            raise ValueError(
+                f"target_override '{target_override}' is also a sensitive attribute; "
+                f"choose a different target."
+            )
+        state.target_col = target_override
+        state.columns_to_drop = [c for c in state.columns_to_drop if c != target_override]
+        schema["target_col"] = target_override
+        print(f"  [override] target column forced to: {target_override}")
+
     print(f"  Sensitive attrs : {schema['sensitive_attrs']}")
     print(f"  Target column   : {schema['target_col']}")
     print(f"  Drop columns    : {schema.get('columns_to_drop', [])}")

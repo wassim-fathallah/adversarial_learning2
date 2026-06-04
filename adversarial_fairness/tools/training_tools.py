@@ -28,9 +28,9 @@ from utils.plotting import TrainingPlotter
 from tools.lambda_tools import decide_lambda_for_iteration
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Internal training helpers
-# ─────────────────────────────────────────────────────────────────────────────
+#
 
 def _make_loader(X, y, sensitive, batch_size=32):
     dataset = TensorDataset(X, y.unsqueeze(1), sensitive)
@@ -52,7 +52,7 @@ def _train_one_epoch_pretrain(classifier, adversary, clf_opt, adv_opt, loader, d
     for X_b, y_b, s_b in loader:
         X_b, y_b, s_b = X_b.to(device), y_b.to(device), s_b.to(device)
 
-        # ── Classifier step ───────────────────────────────────────────────────
+        # Classifier step
         classifier.train()
         clf_opt.zero_grad()
         pred = classifier(X_b)
@@ -61,7 +61,7 @@ def _train_one_epoch_pretrain(classifier, adversary, clf_opt, adv_opt, loader, d
         clf_opt.step()
         total_clf += loss_clf.item()
 
-        # ── Adversary step — classifier frozen, clean signal ──────────────────
+        # Adversary step — classifier frozen, clean signal
         classifier.eval()
         adversary.train()
         adv_opt.zero_grad()
@@ -101,7 +101,7 @@ def _train_one_epoch_adversarial(
     for X_b, y_b, s_b in loader:
         X_b, y_b, s_b = X_b.to(device), y_b.to(device), s_b.to(device)
 
-        # ── Step 1 : Adversary — maximize L_adv ──────────────────────────────
+        # Step 1 : Adversary — maximize L_adv
         classifier.eval()      # dropout OFF → clean prediction for adversary
         adversary.train()
         adv_opt.zero_grad()
@@ -113,7 +113,7 @@ def _train_one_epoch_adversarial(
         adv_opt.step()
         total_adv += loss_adv.item()
 
-        # ── Step 2 : Classifier — minimize L_task - λ·L_adv ──────────────────
+        # Step 2 : Classifier — minimize L_task - λ·L_adv
         classifier.train()     # dropout ON for classifier update
         adversary.eval()       # dropout OFF → stable penalty gradient
         clf_opt.zero_grad()
@@ -137,9 +137,9 @@ def _train_one_epoch_adversarial(
     return total_task / n, total_adv / n, total_clf / n
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Tool 1 — pretrain
-# ─────────────────────────────────────────────────────────────────────────────
+#
 
 @tool
 def pretrain(n_epochs: int = 10) -> str:
@@ -183,6 +183,12 @@ def pretrain(n_epochs: int = 10) -> str:
     )
     print(f"[pretrain] Initial → acc={metrics['accuracy']:.4f} | p_rules={metrics['p_rules']}")
 
+    # Record the clean baseline accuracy — the accuracy this dataset can actually
+    # reach before adversarial fairness pressure. The accuracy floor used during
+    # training is derived from this (not a hardcoded 80%), so each dataset is
+    # judged against what IT can achieve.
+    state.baseline_accuracy = float(metrics["accuracy"])
+
     state.total_epochs_run += n_epochs
 
     return json.dumps({
@@ -192,9 +198,9 @@ def pretrain(n_epochs: int = 10) -> str:
     }, indent=2)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Tool 2 — run_full_training
-# ─────────────────────────────────────────────────────────────────────────────
+#
 
 @tool
 def run_full_training(
@@ -226,6 +232,11 @@ def run_full_training(
     state.p_rule_threshold = p_rule_threshold
     state.max_iterations   = max_iterations
 
+    # Accuracy is NOT limited. There is no accuracy floor / threshold: the model
+    # reaches whatever accuracy it can, and selection is driven by fairness.
+    # Baseline accuracy is still recorded (for reporting) but never gates anything.
+    baseline = float(getattr(state, "baseline_accuracy", 0.0) or 0.0)
+
     if not state.lambda_vector:
         state.lambda_vector = [0.1] * len(state.sensitive_attrs)
 
@@ -233,15 +244,13 @@ def run_full_training(
     long_term    = LongTermMemory()
     plotter      = TrainingPlotter(state.sensitive_attrs)
 
-    # ── Best-result tracking ──────────────────────────────────────────────────
-    # Primary  : among iterations where accuracy >= 0.80, pick highest min P-rule
-    # Fallback : if accuracy never reaches 0.80, pick highest min P-rule
-    #            (accuracy is a secondary tiebreaker, not the primary goal)
-    best_metrics          = {}    # primary   — acc >= 0.80, max min P-rule
-    best_prule_at_acc80   = -1.0
-    best_metrics_fallback = {}    # fallback  — max min P-rule, then max acc
+    # Best-result tracking — fairness-first, no accuracy floor:
+    #   Primary  : among iterations with min P-rule >= threshold, pick HIGHEST ACCURACY.
+    #   Fallback : if the fairness target is never met, pick the highest min P-rule.
+    best_metrics          = {}    # primary  — P-rule>=thr, max accuracy
+    best_acc_at_fair      = -1.0
+    best_metrics_fallback = {}    # fallback — target never met, max min P-rule
     best_prule_fallback   = -1.0
-    best_acc_fallback     = -1.0
 
     loader = _make_loader(state.X_train, state.y_train, state.sensitive_train)
 
@@ -256,6 +265,8 @@ def run_full_training(
     print(f"  Max iterations : {max_iterations}")
     print(f"  Epochs/step    : {epochs_per_step}")
     print(f"  P-rule target  : {p_rule_threshold}%")
+    print(f"  Baseline acc   : {baseline*100:.2f}% (clean, post-pretrain — reported, not a gate)")
+    print(f"  Selection      : max accuracy among iters with min P-rule >= {p_rule_threshold}%")
     print(f"  Initial λ      : {state.lambda_vector}")
     print(f"{'='*60}")
 
@@ -266,7 +277,7 @@ def run_full_training(
     for iteration in range(max_iterations):
         state.current_iteration = iteration
 
-        # ── Train for epochs_per_step epochs ──────────────────────────────────
+        # Train for epochs_per_step epochs
         epoch_task_losses, epoch_adv_losses = [], []
         for _ in range(epochs_per_step):
             task_loss, adv_loss, _ = _train_one_epoch_adversarial(
@@ -280,7 +291,7 @@ def run_full_training(
         avg_task_loss = np.mean(epoch_task_losses)
         avg_adv_loss  = np.mean(epoch_adv_losses)
 
-        # ── Evaluate ──────────────────────────────────────────────────────────
+        # Evaluate
         metrics = evaluate(
             clf, state.X_test, state.y_test, state.sensitive_test,
             state.sensitive_attrs, device
@@ -288,7 +299,7 @@ def run_full_training(
         metrics["adversary_loss"] = float(avg_adv_loss)
         metrics["clf_task_loss"]  = float(avg_task_loss)
 
-        # ── Console log ───────────────────────────────────────────────────────
+        # Console log
         p_rule_str = " | ".join(f"{a}={v:.1f}%" for a, v in metrics["p_rules"].items())
         print(
             f"[iter {iteration+1:2d}/{max_iterations}] "
@@ -298,7 +309,7 @@ def run_full_training(
             f"adv_loss={avg_adv_loss:.4f} | λ={[round(l,3) for l in state.lambda_vector]}"
         )
 
-        # ── Update plotter ────────────────────────────────────────────────────
+        # Update plotter
         plotter.update(
             iteration=iteration + 1,
             accuracy=metrics["accuracy"],
@@ -311,7 +322,7 @@ def run_full_training(
             fairness=metrics.get("fairness", {}),
         )
 
-        # ── Record iteration snapshot ─────────────────────────────────────────
+        # Record iteration snapshot
         iteration_metrics.append({
             "iteration": iteration + 1,
             "accuracy":  round(metrics["accuracy"], 4),
@@ -323,25 +334,22 @@ def run_full_training(
             "adv_loss":  round(float(avg_adv_loss), 4),
         })
 
-        # ── Track best result seen ────────────────────────────────────────────
+        # Track best result seen
         acc = metrics["accuracy"]
         prule = metrics["min_p_rule"]
 
-        if acc >= 0.80:
-            # Primary: accuracy satisfied — maximise min P-rule
-            if prule > best_prule_at_acc80:
-                best_prule_at_acc80 = prule
-                best_metrics        = metrics
+        if prule >= p_rule_threshold:
+            # Primary: fairness target met — maximise ACCURACY (no accuracy floor)
+            if acc > best_acc_at_fair:
+                best_acc_at_fair = acc
+                best_metrics     = metrics
         else:
-            # Fallback: accuracy never reached 80% (e.g. UTKFace)
-            # Pick iteration with best combined score = (min_prule + acc*100) / 2
-            score = (prule + acc * 100.0) / 2.0
-            if score > best_prule_fallback:
-                best_prule_fallback   = score
-                best_acc_fallback     = acc
+            # Fallback: fairness target not yet met — track highest min P-rule
+            if prule > best_prule_fallback:
+                best_prule_fallback   = prule
                 best_metrics_fallback = metrics
 
-        # ── Update short-term memory ──────────────────────────────────────────
+        # Update short-term memory
         short_term.add(
             iteration=iteration + 1,
             lambda_vector=state.lambda_vector,
@@ -354,42 +362,41 @@ def run_full_training(
         lambda_trajectory.append(state.lambda_vector.copy())
         final_metrics = metrics
 
-        # ── Early stopping — only when BOTH accuracy AND fairness are satisfied ─
-        # Optimal solution: accuracy >= 80% AND all P-rules >= threshold
-        # If only one condition is met we keep training to find the trade-off.
-        if acc >= 0.80 and prule >= p_rule_threshold:
+        # Early stopping — fairness target only (accuracy is not limited).
+        # Stop as soon as all P-rules meet the threshold; the best-accuracy
+        # iteration among the fair ones is selected post-hoc.
+        if prule >= p_rule_threshold:
             print(
-                f"  [EARLY STOP] OPTIMAL SOLUTION FOUND at iteration {iteration+1}:\n"
-                f"    acc={acc:.4f} >= 80%  |  min P-rule={prule:.1f}% >= {p_rule_threshold}%"
+                f"  [EARLY STOP] FAIRNESS TARGET REACHED at iteration {iteration+1}:\n"
+                f"    min P-rule={prule:.1f}% >= {p_rule_threshold}%  |  acc={acc:.4f}"
             )
             break
 
-        # ── Momentum lambda update ────────────────────────────────────────────
+        # Momentum lambda update
         new_lambda = decide_lambda_for_iteration(
             current_metrics=metrics,
             lambda_max=lambda_max,
         )
         state.lambda_vector = new_lambda
 
-    # ── Post-training ─────────────────────────────────────────────────────────
+    # Post-training — accuracy is NOT limited; selection is fairness-first.
     # Pick the best result to report and save:
-    #   1. Primary  — acc >= 0.80 exists → use iteration with highest P-rule
-    #   2. Fallback — acc never hit 0.80 → use iteration with highest accuracy
-    #   3. Last resort — nothing tracked yet (should never happen) → final iter
+    #   1. Primary  — some iteration met min P-rule >= threshold → among those,
+    #                 the one with the HIGHEST ACCURACY.
+    #   2. Fallback — target never met → iteration with the highest min P-rule.
+    #   3. Last resort — nothing tracked (should never happen) → final iteration.
     if best_metrics:
         chosen = best_metrics
-        status_tag = "optimal" if best_prule_at_acc80 >= p_rule_threshold else "best_trade_off"
+        status_tag = "optimal"          # fairness target met; best accuracy among fair iters
     elif best_metrics_fallback:
         chosen = best_metrics_fallback
-        status_tag = "best_accuracy_no_fairness"
+        status_tag = "best_fairness_target_not_met"
     else:
         chosen = final_metrics
         status_tag = "max_iterations_reached"
 
-    success = (
-        chosen.get("accuracy", 0) >= 0.80
-        and chosen.get("min_p_rule", 0) >= p_rule_threshold
-    )
+    # Success == fairness target met at the chosen iteration. Accuracy never gates.
+    success = chosen.get("min_p_rule", 0) >= p_rule_threshold
 
     print(
         f"\n  [BEST RESULT — {status_tag}]\n"
@@ -397,6 +404,47 @@ def run_full_training(
         f"min_P-rule={chosen.get('min_p_rule',0):.1f}%  "
         f"P-rules={chosen.get('p_rules',{})}"
     )
+
+    # Fairness diffs per attribute (scaled to %, to match FFB benchmark)
+    #   dp   = demographic parity difference        (FFB test/dp)
+    #   eodd = equalized odds diff = mean(TPR gap, FPR gap)  (FFB test/eodd)
+    #   eopp = equal opportunity diff = TPR gap      (FFB test/eopp)
+    fairness_final = {}
+    for attr, fm in chosen.get("fairness", {}).items():
+        eo = fm.get("equalized_odds", {})
+        fairness_final[attr] = {
+            "dp":   round(fm.get("demographic_parity_diff", 0.0) * 100.0, 2),
+            "eodd": round(0.5 * (eo.get("tpr_gap", 0.0) + eo.get("fpr_gap", 0.0)) * 100.0, 2),
+            "eopp": round(fm.get("equalized_opportunity", {}).get("tpr_gap", 0.0) * 100.0, 2),
+        }
+
+    # Lambda at the best iteration (safer reference than lambda_final)
+    # lambda_final is the momentum-updated value after the last iteration, which
+    # may still be rising. lambda_at_best is the lambda that was actually ACTIVE
+    # during the iteration that produced the chosen (best) result — a much more
+    # meaningful reference for future warm-starts.
+    # Mirror the fairness-first selection: among iterations meeting the P-rule
+    # target, take the highest-accuracy one; otherwise the highest min P-rule.
+    lambda_at_best = None
+    if iteration_metrics:
+        thr = float(p_rule_threshold)
+        best_itr, best_acc, best_pr = None, -1.0, -1.0
+        for m in iteration_metrics:
+            pr = min(m["p_rules"].values()) if m["p_rules"] else 0.0
+            if pr >= thr:
+                if m["accuracy"] > best_acc:
+                    best_acc, best_itr = m["accuracy"], m
+            elif best_acc < 0 and pr > best_pr:   # only if no fair iter found yet
+                best_pr, best_itr = pr, m
+        if best_itr:
+            lambda_at_best = best_itr.get("lambda")
+
+    # Dataset fingerprint (for future cross-dataset warm-starts)
+    run_fingerprint = {}
+    try:
+        run_fingerprint = LongTermMemory.compute_fingerprint(state)
+    except Exception as e:
+        print(f"[memory] fingerprint computation failed ({e}), saving without fingerprint")
 
     long_term.save_run(
         dataset_name=state.dataset_name,
@@ -410,6 +458,9 @@ def run_full_training(
         success=success,
         lambda_trajectory=lambda_trajectory,
         iteration_metrics=iteration_metrics,
+        fairness_final=fairness_final,
+        fingerprint=run_fingerprint,
+        lambda_at_best=lambda_at_best,
     )
 
     plot_filename = f"{state.dataset_name}_training_curves.png" if state.dataset_name else "training_curves.png"

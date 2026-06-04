@@ -23,9 +23,7 @@ from sklearn.calibration import calibration_curve
 from typing import Dict, List, Tuple
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Fairness metrics
-# ─────────────────────────────────────────────────────────────────────────────
 
 def p_rule(y_pred: np.ndarray, sensitive: np.ndarray, threshold: float = 0.5) -> float:
     """Disparate impact ratio * 100. Target: >= 80."""
@@ -114,9 +112,7 @@ def demographic_parity_diff(
     return round(abs(p0 - p1), 4)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Multi-attribute fairness
-# ─────────────────────────────────────────────────────────────────────────────
 
 def abcc(
     y_pred: np.ndarray,
@@ -174,9 +170,7 @@ def compute_all_fairness(
     return results
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Performance metrics
-# ─────────────────────────────────────────────────────────────────────────────
 
 def compute_performance(y_pred: np.ndarray, y_true: np.ndarray, threshold: float = 0.5) -> Dict:
     """
@@ -215,9 +209,7 @@ def compute_performance(y_pred: np.ndarray, y_true: np.ndarray, threshold: float
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Combined evaluation (called from training tools)
-# ─────────────────────────────────────────────────────────────────────────────
 
 @torch.no_grad()
 def evaluate(

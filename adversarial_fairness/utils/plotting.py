@@ -71,7 +71,7 @@ class TrainingPlotter:
         fig, axes = plt.subplots(n_rows, 1, figsize=(12, 4 * n_rows), sharex=True)
         fig.suptitle("Adversarial Fairness Training — All Metrics", fontsize=14, y=1.01)
 
-        # ── Row 1: Performance ────────────────────────────────────────────────
+        # Row 1: Performance
         ax = axes[0]
         ax.plot(iters, self.accuracies, "b-o", ms=4, label="Accuracy")
         ax.plot(iters, self.f1_scores,  "g-s", ms=4, label="F1 Score")
@@ -83,7 +83,7 @@ class TrainingPlotter:
         ax.grid(True, alpha=0.3)
         ax.set_title("Performance Metrics")
 
-        # ── Row 2: P-rule ─────────────────────────────────────────────────────
+        # Row 2: P-rule
         ax = axes[1]
         for i, attr in enumerate(self.sensitive_attrs):
             ax.plot(iters, self.p_rules[attr], color=COLORS[i], marker="s", ms=4, label=f"P-rule ({attr})")
@@ -94,7 +94,7 @@ class TrainingPlotter:
         ax.grid(True, alpha=0.3)
         ax.set_title("Disparate Impact (P-rule) per Attribute")
 
-        # ── Row 3: Equalized Odds (TPR gap) ──────────────────────────────────
+        # Row 3: Equalized Odds (TPR gap)
         ax = axes[2]
         for i, attr in enumerate(self.sensitive_attrs):
             ax.plot(iters, self.eq_odds_tpr[attr], color=COLORS[i], marker="o", ms=4,
@@ -107,7 +107,7 @@ class TrainingPlotter:
         ax.grid(True, alpha=0.3)
         ax.set_title("Equalized Odds — TPR & FPR Gap per Attribute")
 
-        # ── Row 4: Equalized Opportunity (TPR gap only) ───────────────────────
+        # Row 4: Equalized Opportunity (TPR gap only)
         ax = axes[3]
         for i, attr in enumerate(self.sensitive_attrs):
             ax.plot(iters, self.eq_opp_tpr[attr], color=COLORS[i], marker="D", ms=4,
@@ -118,7 +118,7 @@ class TrainingPlotter:
         ax.grid(True, alpha=0.3)
         ax.set_title("Equalized Opportunity — TPR Gap per Attribute")
 
-        # ── Row 5: Lambda (LLM decisions) ────────────────────────────────────
+        # Row 5: Lambda (decisions)
         ax = axes[4]
         for i, attr in enumerate(self.sensitive_attrs):
             if self.lambdas[attr]:

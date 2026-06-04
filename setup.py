@@ -42,7 +42,7 @@ def step(n, msg):
     print(f"{'='*60}")
 
 
-# ── Step 1 — Virtual environment ──────────────────────────────────────────────
+# Step 1 — Virtual environment
 
 step(1, "Create virtual environment + install packages")
 
@@ -57,7 +57,7 @@ run([PIP, "install", "-r", os.path.join(ROOT, "requirements.txt"), "-q"])
 print("  Packages installed.")
 
 
-# ── Step 2 — Datasets ────────────────────────────────────────────────────────
+# Step 2 — Datasets
 
 step(2, "Download datasets from Dropbox")
 
@@ -98,7 +98,7 @@ else:
     print("  Datasets extracted and zip deleted.")
 
 
-# ── Step 3 — FFB results ──────────────────────────────────────────────────────
+# Step 3 — FFB results
 
 step(3, "Download FFB benchmark results from WandB")
 
@@ -112,7 +112,7 @@ else:
     run([PYTHON, os.path.join(ROOT, "download_ffb_wandb.py")])
 
 
-# ── Done ──────────────────────────────────────────────────────────────────────
+# Done
 
 print(f"""
 {'='*60}

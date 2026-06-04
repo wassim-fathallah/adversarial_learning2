@@ -23,9 +23,7 @@ import urllib.error
 from orchestrator import run_pipeline
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Ollama health check — must pass before any pipeline work starts
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _check_ollama(host: str = "http://localhost:11434", timeout: int = 5) -> None:
     """
@@ -92,6 +90,7 @@ def _run_one(name: str, path: str, args) -> dict:
         p_rule_threshold=args.threshold,
         initial_epochs=args.pretrain,
         device=args.device,
+        target_override=args.target,
     )
     return result
 
@@ -117,12 +116,16 @@ def main():
                         help="Dataset path or preset name. Omit to run all 7 datasets.")
     parser.add_argument("--name",       type=str, default="",
                         help="Override dataset name used for memory key")
+    parser.add_argument("--target",     type=str, default=None,
+                        help="Force the target column (overrides LLM pick).")
     parser.add_argument("--iterations", type=int, default=25,
                         help="Max adversarial iterations (default: 25)")
     parser.add_argument("--epochs",     type=int, default=50,
                         help="Epochs per adversarial step (default: 50)")
     parser.add_argument("--threshold",  type=float, default=80.0,
-                        help="P-rule target %% (default: 80)")
+                        help="P-rule target %% (default: 80). Accuracy is NOT "
+                             "limited — among iterations meeting this P-rule, the "
+                             "highest-accuracy one is selected.")
     parser.add_argument("--pretrain",   type=int, default=10,
                         help="Pre-training epochs (default: 10)")
     parser.add_argument("--device",     type=str, default=None,
@@ -131,7 +134,7 @@ def main():
 
     _check_ollama()
 
-    # ── Single dataset mode ───────────────────────────────────────────────────
+    # Single dataset mode
     if args.dataset:
         path, name = _resolve_path(args.dataset)
         if args.name:
@@ -140,7 +143,7 @@ def main():
         _print_result(name, result)
         return
 
-    # ── Multi-dataset mode — run ALL_DATASETS sequentially ───────────────────
+    # Multi-dataset mode — run ALL_DATASETS sequentially
     base = os.path.dirname(os.path.abspath(__file__))
     results_summary = []
 
@@ -176,7 +179,7 @@ def main():
             traceback.print_exc()
             results_summary.append({"name": ds_name, "status": f"ERROR: {e}"})
 
-    # ── Final summary table ───────────────────────────────────────────────────
+    # Final summary table
     print("\n" + "=" * 60)
     print("  FINAL SUMMARY — ALL DATASETS")
     print("=" * 60)

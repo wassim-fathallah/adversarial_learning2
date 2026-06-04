@@ -1,4 +1,7 @@
-import torchvision
+try:
+    import torchvision
+except ModuleNotFoundError:
+    torchvision = None  # only needed for image models; tabular path does not use it
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

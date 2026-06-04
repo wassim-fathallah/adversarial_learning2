@@ -9,7 +9,7 @@ import torch
 
 @dataclass
 class TrainingState:
-    # ── Dataset ──────────────────────────────────────────────────────────────
+    # Dataset
     dataset_name: str = ""
     dataset_path: str = ""
     target_col: str = ""
@@ -18,22 +18,23 @@ class TrainingState:
     binarization_rules: Dict[str, Any] = field(default_factory=dict)
     columns_to_drop: List[str] = field(default_factory=list)
 
-    # ── Tensors ───────────────────────────────────────────────────────────────
+    # Tensors
     X_train: Optional[torch.Tensor] = None
     X_test: Optional[torch.Tensor] = None
     y_train: Optional[torch.Tensor] = None
     y_test: Optional[torch.Tensor] = None
     sensitive_train: Optional[torch.Tensor] = None   # (N, n_sensitive)
     sensitive_test: Optional[torch.Tensor] = None
-    # ── Models ────────────────────────────────────────────────────────────────
+    # Models
     classifier: Optional[Any] = None
     adversary: Optional[Any] = None
     clf_optimizer: Optional[Any] = None
     adv_optimizer: Optional[Any] = None
 
-    # ── Hyperparameters ───────────────────────────────────────────────────────
+    # Hyperparameters
     lambda_vector: List[float] = field(default_factory=list)
     lambda_momentum: List[float] = field(default_factory=list)
+    best_lambda_seen: List[float] = field(default_factory=list)
     pos_weight: float = 1.0          # class imbalance weight for BCELoss
     p_rule_threshold: float = 80.0
     max_iterations: int = 25
@@ -41,10 +42,15 @@ class TrainingState:
     initial_epochs: int = 10
     device: str = "cpu"
 
-    # ── Runtime tracking ─────────────────────────────────────────────────────
+    # Runtime tracking
     current_iteration: int = 0
     total_epochs_run: int = 0
     training_done: bool = False
+
+    # Clean accuracy reached after pretraining (BEFORE adversarial pressure).
+    # Recorded for reporting only — accuracy is NOT limited and never gates
+    # selection; the result is the highest-accuracy iteration meeting the P-rule.
+    baseline_accuracy: float = 0.0
 
 
 # Singleton — imported by all tools

@@ -1,14 +1,8 @@
 """
 Lambda management — fully deterministic, no LLM.
 
-decide_initial_lambda       : fingerprint warm-start from long-term memory,
-                               falls back to random [0.05, 0.30] if no match.
+decide_initial_lambda       : zero-initialized lambda per attribute.
 decide_lambda_for_iteration : pure momentum formula + running-max guard.
-
-Fingerprint similarity gates:
-  Hard : |n_sensitive_attrs_past - current| <= 1   (must pass)
-  Soft : weighted distance < 0.30                  (must pass)
-  Weights: class_imbalance=0.40, group_size_ratio=0.35, size_bucket=0.25
 
 Running-max guard:
   While P-rule < threshold → λ is not allowed to drop below its historical max.
@@ -16,83 +10,19 @@ Running-max guard:
 """
 
 import json
-import random
 import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from langchain.tools import tool
 from state import state
+from memory.long_term import LongTermMemory
 
 
 LAMBDA_LEARNING_RATE = 2.5
 MOMENTUM_BETA        = 0.7
 
-# Fingerprint similarity thresholds
-_HARD_GATE_N_ATTRS = 1      # max difference in n_sensitive_attrs
-_SOFT_GATE_DIST    = 0.30   # max weighted distance
-_SAFETY_MARGIN     = 0.85   # scale matched lambda down slightly
-_BUCKET_ORDER      = {"small": 0, "medium": 1, "large": 2}
 
-# Similarity weights (must sum to 1.0)
-_W_CLASS  = 0.40   # class_imbalance  — directly scales L_task
-_W_GROUP  = 0.35   # group_size_ratio — adversary signal quality
-_W_BUCKET = 0.25   # dataset size     — convergence speed
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Fingerprint similarity
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _fingerprint_distance(fp_a: dict, fp_b: dict) -> float:
-    """
-    Weighted distance between two fingerprints (0 = identical, 1 = maximally different).
-    Only called after the hard gate passes.
-    """
-    d_class  = abs(fp_a["class_imbalance"]  - fp_b["class_imbalance"])   / 0.5
-    d_group  = abs(fp_a["group_size_ratio"] - fp_b["group_size_ratio"])   / 0.5
-    b_a = _BUCKET_ORDER.get(fp_a["dataset_size_bucket"], 1)
-    b_b = _BUCKET_ORDER.get(fp_b["dataset_size_bucket"], 1)
-    d_bucket = abs(b_a - b_b) / 2.0
-
-    return _W_CLASS * d_class + _W_GROUP * d_group + _W_BUCKET * d_bucket
-
-
-def retrieve_similar_run(current_fp: dict, long_term_memory) -> Optional[dict]:
-    """
-    Search all past runs for the closest structural match to current_fp.
-
-    Returns the best matching run dict (with lambda_final, p_rules_final…)
-    or None if no run passes both gates.
-    """
-    best_run  = None
-    best_dist = float("inf")
-
-    for key, runs in long_term_memory.data.items():
-        for run in runs:
-            past_fp = run.get("fingerprint")
-            if not past_fp:
-                continue
-
-            # Hard gate — n_sensitive_attrs must be close
-            if abs(past_fp.get("n_sensitive_attrs", 0) - current_fp["n_sensitive_attrs"]) > _HARD_GATE_N_ATTRS:
-                continue
-
-            dist = _fingerprint_distance(current_fp, past_fp)
-
-            # Soft gate
-            if dist >= _SOFT_GATE_DIST:
-                continue
-
-            if dist < best_dist:
-                best_dist = dist
-                best_run  = run
-
-    return best_run
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Core momentum update
-# ─────────────────────────────────────────────────────────────────────────────
 
 def decide_lambda_for_iteration(
     current_metrics: Dict[str, Any],
@@ -152,58 +82,42 @@ def decide_lambda_for_iteration(
     return updated
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LangChain Tool — initial lambda with fingerprint warm-start
-# ─────────────────────────────────────────────────────────────────────────────
+# LangChain Tool — initial lambda (zero start)
 
 @tool
 def decide_initial_lambda(n_sensitive: int = 2) -> str:
     """
     Sets the initial lambda vector before training starts.
 
-    Strategy (in order):
-      1. Fingerprint warm-start: find the most structurally similar past run
-         in long-term memory and scale its final lambda by 0.85.
-      2. Random fallback: uniform [0.05, 0.30] per attribute.
-
-    The fingerprint encodes: n_sensitive_attrs, class_imbalance,
-    group_size_ratio, dataset_size_bucket.
+    Strategy (in priority order):
+      1. Already set this session (cached) — reuse.
+      2. Fingerprint match in long-term memory — warm start at 50% of the
+         lambda from the most structurally similar past successful run
+         (similarity >= 0.75; cap at 5.0 per attribute).
+      3. Zero init — no relevant history found.
     """
     if state.lambda_vector:
         return json.dumps({"initial_lambda": state.lambda_vector, "source": "cached"}, indent=2)
 
     n = len(state.sensitive_attrs) if state.sensitive_attrs else n_sensitive
 
-    # Try fingerprint warm-start if fingerprint has been computed
-    current_fp = getattr(state, "fingerprint", None)
-    if current_fp:
+    # Fingerprint-based warm start: requires data to be loaded into state
+    if state.X_train is not None and state.sensitive_train is not None:
         try:
-            from memory.long_term import LongTermMemory
             lt = LongTermMemory()
-            match = retrieve_similar_run(current_fp, lt)
-
-            if match:
-                past_lambda  = match.get("lambda_final", [])
-                past_n       = match.get("fingerprint", {}).get("n_sensitive_attrs", n)
-                past_prules  = match.get("p_rules_final", {})
-
-                if past_lambda:
-                    # Scale by attribute ratio and apply safety margin
-                    scale   = (n / max(past_n, 1)) * _SAFETY_MARGIN
-                    lambdas = [round(float(np.clip(l * scale, 0.05, 5.0)), 3) for l in past_lambda[:n]]
-                    # Pad if needed
-                    while len(lambdas) < n:
-                        lambdas.append(round(random.uniform(0.05, 0.30), 3))
-
-                    state.lambda_vector = lambdas
-                    print(f"[λ-init] fingerprint warm-start: {lambdas}")
-                    print(f"  matched run: p_rules={past_prules}, dist≈{_fingerprint_distance(current_fp, match['fingerprint']):.3f}")
-                    return json.dumps({"initial_lambda": lambdas, "source": "fingerprint_warmstart"}, indent=2)
+            fp = LongTermMemory.compute_fingerprint(state)
+            warm, info = lt.find_warm_start(fp, n)
+            if warm is not None:
+                state.lambda_vector = warm
+                print(f"[λ-init] fingerprint warm start: {info}")
+                return json.dumps(
+                    {"initial_lambda": warm, "source": "fingerprint", "match_info": info},
+                    indent=2,
+                )
         except Exception as e:
-            print(f"[λ-init] fingerprint lookup failed: {e} — using random")
+            print(f"[λ-init] fingerprint search failed ({e}), falling back to zero init")
 
-    # Random fallback
-    lambdas = [round(random.uniform(0.05, 0.30), 3) for _ in range(n)]
+    lambdas = [0.0] * n
     state.lambda_vector = lambdas
-    print(f"[λ-init] random start: {lambdas}")
-    return json.dumps({"initial_lambda": lambdas, "source": "random [0.05, 0.30]"}, indent=2)
+    print(f"[λ-init] zero start: {lambdas}")
+    return json.dumps({"initial_lambda": lambdas, "source": "zero"}, indent=2)

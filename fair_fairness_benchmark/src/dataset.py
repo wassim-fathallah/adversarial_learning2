@@ -7,8 +7,12 @@ import torch
 import os
 from pathlib import Path
 from torch.utils.data import Dataset
-from torchvision.datasets.folder import pil_loader
-import torchvision.transforms as transforms
+try:
+    from torchvision.datasets.folder import pil_loader
+    import torchvision.transforms as transforms
+except ModuleNotFoundError:
+    pil_loader = None
+    transforms = None  # image loaders unavailable; tabular path does not need torchvision
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
@@ -465,6 +469,62 @@ def load_migration_data(path="../datasets/migration", sensitive_attribute="sex")
         df[col] = df[col].fillna(median_val if not np.isnan(median_val) else 0.0)
 
     return df, y, s
+
+
+def _ffb_binarize(col):
+    """Binarize an arbitrary column to 0/1 for generic uploads.
+    numeric: 2 distinct -> higher=1, else median split. categorical: 2 distinct ->
+    higher=1, else most-frequent vs rest."""
+    num = pd.to_numeric(col, errors="coerce")
+    if num.notna().mean() > 0.9:
+        vals = sorted(pd.unique(num.dropna()))
+        if len(vals) == 2:
+            return (num == vals[1]).astype(int)
+        return (num > num.median()).astype(int)
+    cats = col.astype(str)
+    uniq = sorted(pd.unique(cats.dropna()))
+    if len(uniq) == 2:
+        return (cats == uniq[1]).astype(int)
+    top = cats.value_counts().idxmax()
+    return (cats == top).astype(int)
+
+
+def load_generic_data(path="../datasets/generic", sensitive_attribute="", target_attr=None):
+    """
+    Generic loader for an uploaded tabular CSV (Streamlit 'run on FFB' button).
+    Reads {path}/config.json: {"csv_name", "target_attr", "sensitive_attrs", "drop_cols"}.
+    Returns (X, y, s) with the same dtype contract as the other loaders:
+      X has 'string' (categorical) + 'float32' (numeric) columns;
+      y and s are single-column 0/1 DataFrames.
+    """
+    import json
+    cfg = json.load(open(os.path.join(path, "config.json")))
+    target = target_attr or cfg["target_attr"]
+    df = pd.read_csv(os.path.join(path, cfg["csv_name"]), low_memory=False)
+
+    if target not in df.columns:
+        raise ValueError(f"target_attr '{target}' not in uploaded CSV")
+    if sensitive_attribute not in df.columns:
+        raise ValueError(f"sensitive_attr '{sensitive_attribute}' not in uploaded CSV")
+
+    df = df.dropna(subset=[target, sensitive_attribute])
+
+    y = _ffb_binarize(df[target]).to_frame(target)
+    s = _ffb_binarize(df[sensitive_attribute]).to_frame(sensitive_attribute)
+
+    # Features: drop target + the sensitive attribute used this run + any configured drops.
+    drop_cols = [target, sensitive_attribute] + list(cfg.get("drop_cols", []))
+    X = df.drop(columns=[c for c in drop_cols if c in df.columns])
+
+    obj_cols = X.select_dtypes(include="object").columns
+    X[obj_cols] = X[obj_cols].astype("string")
+    num_cols = X.select_dtypes(exclude="string").columns
+    X[num_cols] = X[num_cols].astype("float32")
+    for col in num_cols:
+        med = X[col].median()
+        X[col] = X[col].fillna(med if not np.isnan(med) else 0.0)
+
+    return X, y, s
 
 
 if __name__ == '__main__':

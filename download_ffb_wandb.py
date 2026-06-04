@@ -27,7 +27,7 @@ except ImportError:
 ENTITY = "fair_benchmark"
 
 # Tabular datasets to include
-TARGET_TABULAR = {"adult", "german", "compas", "bank_marketing", "migration"}
+TARGET_TABULAR = {"adult", "german", "compas", "bank_marketing", "migration", "kdd", "acs"}
 # Image datasets to include
 TARGET_IMAGE   = {"utkface"}
 
@@ -84,6 +84,7 @@ def fetch_project(project_name, method_name, target_datasets, max_runs=None):
         sensitive    = safe_get(cfg, "sensitive_attr",  safe_get(cfg, "sens_col", "unknown"))
         lam          = safe_get(cfg, "lam",             safe_get(cfg, "alpha",    0.0))
         seed         = safe_get(cfg, "seed",            0)
+        target_attr  = safe_get(cfg, "target_attr",    None)   # image datasets only
 
         # Skip datasets not in the target set for this project type
         if target_datasets and dataset not in target_datasets:
@@ -130,21 +131,25 @@ def fetch_project(project_name, method_name, target_datasets, max_runs=None):
             print(f"  WARN: could not fetch history for run {run.name}: {e}")
             continue
 
-        record = {
-            "metadata": {
-                "method":         method_name,
-                "dataset":        dataset,
-                "sensitive_attr": sensitive,
-                "lam":            lam,
-                "seed":           seed,
-                "source":         "wandb",
-                "wandb_run":      run.name,
-                "project":        project_name,
-            },
-            "history": history,
+        meta = {
+            "method":         method_name,
+            "dataset":        dataset,
+            "sensitive_attr": sensitive,
+            "lam":            lam,
+            "seed":           seed,
+            "source":         "wandb",
+            "wandb_run":      run.name,
+            "project":        project_name,
         }
+        if target_attr:
+            meta["target_attr"] = target_attr
 
-        fname = f"{dataset}_{method_name}_{sensitive}_lam{lam}_seed{seed}.json"
+        record = {"metadata": meta, "history": history}
+
+        # For image datasets the target_attr is part of the experimental setup and
+        # must be in the filename so runs with different targets don't overwrite each other.
+        target_suffix = f"_{target_attr}" if target_attr else ""
+        fname = f"{dataset}_{method_name}_{sensitive}{target_suffix}_lam{lam}_seed{seed}.json"
         fpath = os.path.join(OUT_DIR, fname)
 
         # Skip if already downloaded
@@ -168,6 +173,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", type=str, default=None,
                         help="Single WandB project to download (e.g. exp1.erm)")
+    parser.add_argument("--datasets", nargs="*", default=None,
+                        help="Optional dataset filter (e.g. acs kdd). Defaults to all supported datasets.")
     parser.add_argument("--quick",   action="store_true",
                         help="Download only first 20 runs per project (for testing)")
     args = parser.parse_args()
@@ -176,25 +183,31 @@ def main():
 
     max_runs = 20 if args.quick else None
     total    = 0
+    dataset_filter = set(args.datasets) if args.datasets else None
+
+    def filtered_targets(targets):
+        if not dataset_filter:
+            return targets
+        return {dataset for dataset in targets if dataset in dataset_filter}
 
     # Single project override
     if args.project:
         all_projects = {**TABULAR_PROJECTS, **IMAGE_PROJECTS}
         if args.project in all_projects:
             is_image    = args.project in IMAGE_PROJECTS
-            target_ds   = TARGET_IMAGE if is_image else TARGET_TABULAR
+            target_ds   = filtered_targets(TARGET_IMAGE if is_image else TARGET_TABULAR)
             total += fetch_project(args.project, all_projects[args.project],
                                    target_datasets=target_ds, max_runs=max_runs)
     else:
-        print("\n── Tabular methods ─────────────────────────────────")
+        print("\nTabular methods")
         for project_name, method_name in TABULAR_PROJECTS.items():
             total += fetch_project(project_name, method_name,
-                                   target_datasets=TARGET_TABULAR, max_runs=max_runs)
+                                   target_datasets=filtered_targets(TARGET_TABULAR), max_runs=max_runs)
 
-        print("\n── Image methods (UTKFace) ──────────────────────────")
+        print("\nImage methods (UTKFace)")
         for project_name, method_name in IMAGE_PROJECTS.items():
             total += fetch_project(project_name, method_name,
-                                   target_datasets=TARGET_IMAGE, max_runs=max_runs)
+                                   target_datasets=filtered_targets(TARGET_IMAGE), max_runs=max_runs)
 
     print(f"\nDone. {total} total runs saved to:\n  {OUT_DIR}")
     print("\nRefresh the Streamlit dashboard to see the new results.")

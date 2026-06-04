@@ -89,7 +89,7 @@ def test(model, test_loader, clf_criterion, fair_criterion, lam, device, prefix=
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default="../datasets/adult/raw")
-    parser.add_argument("--dataset", type=str,default="adult",choices=["adult","kdd","acs","german", "compas" ,"bank_marketing","migration"], help="e.g. adult,kdd,acs,german,compas,bank_marketing,migration")
+    parser.add_argument("--dataset", type=str,default="adult",choices=["adult","kdd","acs","german", "compas" ,"bank_marketing","migration","generic"], help="e.g. adult,kdd,acs,german,compas,bank_marketing,migration,generic")
     parser.add_argument("--model", type=str, default="diffdp")
     parser.add_argument("--target_attr", type=str, default="income")
     parser.add_argument("--sensitive_attr", type=str, default="sex")
@@ -148,6 +148,11 @@ if __name__ == "__main__":
     elif args.dataset == "migration":
         print(f"Dataset: migration")
         X, y, s = load_migration_data(path="../datasets/migration", sensitive_attribute=args.sensitive_attr)
+
+    elif args.dataset == "generic":
+        print(f"Dataset: generic (uploaded)")
+        from dataset import load_generic_data
+        X, y, s = load_generic_data(path="../datasets/generic", sensitive_attribute=args.sensitive_attr)
 
     else:
         raise ValueError(f"Unknown dataset: {args.dataset}")

@@ -110,6 +110,11 @@ if __name__ == '__main__':
         print(f"Dataset: migration")
         X, y, s = load_migration_data(path="../datasets/migration", sensitive_attribute=args.sensitive_attr)
 
+    elif args.dataset == "generic":
+        print(f"Dataset: generic (uploaded)")
+        from dataset import load_generic_data
+        X, y, s = load_generic_data(path="../datasets/generic", sensitive_attribute=args.sensitive_attr)
+
     else:
         print(f"Wrong args.dataset")
 

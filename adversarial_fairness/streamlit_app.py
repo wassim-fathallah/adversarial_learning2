@@ -18,9 +18,7 @@ MEMORY_FILE = os.path.join(os.path.dirname(__file__), "long_term_memory.json")
 COLORS = ["#e74c3c", "#2ecc71", "#9b59b6", "#f39c12", "#1abc9c"]
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Data loading
-# ──────────────────────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=10)
 def load_memory():
@@ -48,9 +46,7 @@ def group_by_dataset(memory: dict) -> dict[str, list[dict]]:
     return dict(groups)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Plot helpers
-# ──────────────────────────────────────────────────────────────────────────────
 
 def _sensitive_attrs(run: dict) -> list[str]:
     attrs_str = run.get("_attrs", "")
@@ -84,7 +80,7 @@ def plot_run(run: dict) -> go.Figure:
         )
         return fig
 
-    # ── Build figure with 4 subplots ──────────────────────────────────────────
+    # Build figure with 4 subplots
     xs = [m["iteration"] for m in iters]
 
     fig = make_subplots(
@@ -143,9 +139,7 @@ def plot_run(run: dict) -> go.Figure:
     return fig
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Run summary card
-# ──────────────────────────────────────────────────────────────────────────────
 
 def show_run_summary(run: dict):
     p_rules = run.get("p_rules_final", {})
@@ -156,9 +150,8 @@ def show_run_summary(run: dict):
     epochs  = run.get("total_epochs", "?")
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Accuracy", f"{acc*100:.2f}%",
-                delta="✓ ≥80%" if acc >= 0.80 else "✗ <80%",
-                delta_color="normal" if acc >= 0.80 else "inverse")
+    # Accuracy is reported but not limited — no pass/fail target on it.
+    col1.metric("Accuracy", f"{acc*100:.2f}%")
     for i, (attr, val) in enumerate(p_rules.items()):
         cols = [col2, col3, col4]
         if i < len(cols):
@@ -174,9 +167,7 @@ def show_run_summary(run: dict):
     )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Main app
-# ──────────────────────────────────────────────────────────────────────────────
 
 def main():
     st.set_page_config(
@@ -199,7 +190,7 @@ def main():
     datasets = group_by_dataset(memory)
     dataset_names = sorted(datasets.keys())
 
-    # ── One tab per dataset ───────────────────────────────────────────────────
+    # One tab per dataset
     tabs = st.tabs([f"📊 {name.upper()}" for name in dataset_names])
 
     for tab, dataset_name in zip(tabs, dataset_names):
@@ -212,7 +203,7 @@ def main():
                 st.info("No runs yet.")
                 continue
 
-            # ── Sub-tabs: one per run ─────────────────────────────────────────
+            # Sub-tabs: one per run
             run_labels = [
                 f"Run {r['_run_index']+1}  {r.get('timestamp','')[:10]}"
                 for r in runs
