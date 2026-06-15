@@ -192,7 +192,8 @@ downloaded), run one small dataset:
 > **highest-accuracy** model is selected.
 
 Results (metrics, lambda trajectory, dataset fingerprint) are saved to
-`adversarial_fairness/long_term_memory.json`.
+`adversarial_fairness/long_term_memory.json` — **view them (all 10 seeds per
+dataset, FFB baselines, and side-by-side) in the dashboard, section E.**
 
 ---
 
@@ -219,61 +220,38 @@ The memory key is derived from the file name; use `--name` to set it explicitly.
 
 ---
 
-## C — Run the FFB benchmark
+## C — FFB benchmark results (already included — nothing to download)
 
-> 📊 **Where the baseline results come from.** The FFB baseline operating points
-> shipped in `fair_fairness_benchmark/results/` (ERM, AdvDebias, PR, HSIC, LAFTR)
-> were **extracted from the official Fair Fairness Benchmark** public WandB
-> projects (Han et al., ICLR 2024) — re-fetch them anytime with
-> `download_ffb_wandb.py` (public, no account needed). The aggregated per-method
-> tables (`ERM_all.csv`, `ADV_all.csv`, `PRALL.csv`, `HSIC_all.csv`,
-> `LAFTR_all.csv`) are built from those runs. The **HIMS-Tunisia** dataset (new,
-> absent from FFB) and the **UTKFace adversarial** baseline were produced by us
-> using the same FFB implementations under `fair_fairness_benchmark/`.
+**You — or your supervisor — do not need to download or re-run anything.** The FFB
+baseline results (**ERM, AdvDebias, PR, HSIC, LAFTR**) for every dataset are
+**committed to this repo** in `fair_fairness_benchmark/results/*.json`, together
+with the aggregated tables `ERM_all.csv`, `ADV_all.csv`, `PRALL.csv`,
+`HSIC_all.csv`, `LAFTR_all.csv`. So the comparison (section D) and the dashboard
+(section E) work straight out of the box — no WandB account, no conda env, no
+re-download.
 
-> ✅ **You can skip this whole section to review the work.** The FFB result
-> files already ship in the repo (`fair_fairness_benchmark/results/*.json`,
-> committed), so the comparison in section D works out of the box — no WandB
-> account, no conda env, no `requirements_ffb.txt` needed. Only do C if you want
-> to *regenerate* the FFB numbers from scratch.
+> **Provenance.** These baselines were extracted from the official **Fair Fairness
+> Benchmark** public WandB projects (Han et al., ICLR 2024). HIMS-Tunisia (new,
+> absent from FFB) and the UTKFace adversarial baseline were produced by us with
+> the same FFB implementations. `download_ffb_wandb.py` can re-fetch the public
+> results if they're ever lost — but it is **not** required.
 
-The FFB scripts do **not** need Ollama. Two ways to get FFB numbers:
+### Run your OWN dataset through the FFB algorithms
 
-### C.1 — Download the published FFB results (fast, recommended)
+**Easiest — the dashboard (section E).** The FFB tab has an upload that runs
+ERM / AdvDebias / PR / HSIC / LAFTR on your CSV and shows the results.
 
-Fetches the paper's results into `fair_fairness_benchmark/results/*.json`:
-
-```bash
-.venv\Scripts\python download_ffb_wandb.py            # all methods/datasets
-.venv\Scripts\python download_ffb_wandb.py --quick    # first 20 runs each (test)
-.venv\Scripts\python download_ffb_wandb.py --project exp1.erm   # single method
-```
-
-### C.2 — Re-run FFB training yourself (slow; separate conda env)
+**CLI** — put your data + a small config in `fair_fairness_benchmark/datasets/generic/`,
+then run the sweep:
 
 ```bash
-conda create -n ffb_env python=3.10
-conda activate ffb_env
-pip install -r requirements_ffb.txt
-```
+# fair_fairness_benchmark/datasets/generic/config.json
+#   {"csv_name": "data.csv", "target_attr": "<label>", "sensitive_attrs": ["<attr>"], "drop_cols": []}
 
-**HIMS-Tunisia dataset (full sweep driver):**
-```bash
-python fair_fairness_benchmark/run_benchmark.py --no_wandb            # full sweep
-python fair_fairness_benchmark/run_benchmark.py --quick --no_wandb    # fast test
-python fair_fairness_benchmark/run_benchmark.py --method hsic --no_wandb   # one method
-python fair_fairness_benchmark/run_benchmark.py --sens sex --no_wandb      # one attribute
+.venv\Scripts\python fair_fairness_benchmark/run_generic_sweep.py                       # all methods, 10 seeds
+.venv\Scripts\python fair_fairness_benchmark/run_generic_sweep.py --methods erm,adv --seeds 42   # quick
 ```
-
-**Any other dataset (run a single FFB method script directly):**
-```bash
-cd fair_fairness_benchmark/src
-python ffb_tabular_adv.py   --dataset adult --sensitive_attr sex --lam 1.0
-python ffb_tabular_hsic.py  --dataset adult --sensitive_attr race --lam 100
-python ffb_tabular_erm.py   --dataset adult --sensitive_attr sex
-```
-> Method scripts: `ffb_tabular_{erm,adv,hsic,pr,laftr,diffdp,diffeopp,diffeodd}.py`.
-> LAFTR uses `--A_z` instead of `--lam`. See each script's `--help` for all flags.
+Results land in `results/generic_*.json` and show up in the dashboard automatically.
 
 ---
 
@@ -290,16 +268,21 @@ Writes `comparison_tables.tex` and `comparison_data.csv` into `adversarial_fairn
 
 ---
 
-## E — Launch the dashboard
+## E — View all results (dashboard)
+
+The dashboard is the main way to **see the results** — ours, FFB's, and side by
+side. Launch it:
 
 ```bash
 .venv\Scripts\python -m streamlit run unified_app.py
 ```
 
 Opens at `http://localhost:8501` with three tabs:
-- **⚙️ Agentic Adversarial Debiasing** — our results (`long_term_memory.json`)
-- **📊 FFB Benchmark** — FFB results (`fair_fairness_benchmark/results/`)
-- **🔬 Comparison** — both side by side
+- **⚙️ Agentic Adversarial Debiasing** — **our results**: per dataset, each of the
+  **10 seed runs** (accuracy, per-attribute P-rules, λ trajectory, fingerprint),
+  read from `long_term_memory.json`.
+- **📊 FFB Benchmark** — the **FFB baseline results** (`fair_fairness_benchmark/results/`).
+- **🔬 Comparison** — our method vs FFB, **side by side**.
 
 ---
 
@@ -365,6 +348,5 @@ adversarial_learning2/
 
 ## References
 
-- Zhang et al. (2018). *Mitigating Unwanted Biases with Adversarial Learning.* AIES 2018.
 - Han et al. (2024). *FFB: A Fair Fairness Benchmark for In-Processing Group Fairness Methods.* ICLR 2024. [GitHub](https://github.com/ahxt/fair_fairness_benchmark) (MIT License)
 ```
