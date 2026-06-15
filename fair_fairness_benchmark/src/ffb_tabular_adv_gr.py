@@ -13,7 +13,7 @@ import wandb
 import time
 
 
-from dataset import load_census_income_kdd_data,load_census_income_kdd_data,load_adult_data,load_german_data, load_compas_data, load_german_data, load_bank_marketing_data, load_acs_data, load_migration_data
+from dataset import load_census_income_kdd_data,load_census_income_kdd_data,load_adult_data,load_german_data, load_compas_data, load_german_data, load_bank_marketing_data, load_acs_data, load_hims_tunisia_data
 from results_logger import ResultsLogger
 from utils import seed_everything, PandasDataSet, print_metrics, clear_lines, InfiniteDataLoader
 from metrics import metric_evaluation
@@ -96,7 +96,7 @@ def test(model, test_loader, clf_criterion, adv_criterion, lam, device, prefix="
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default="../datasets/adult/raw")
-    parser.add_argument("--dataset", type=str,default="adult",choices=["adult","kdd","acs","german", "compas" ,"bank_marketing","migration"], help="e.g. adult,kdd,acs,german,compas,bank_marketing,migration")
+    parser.add_argument("--dataset", type=str,default="adult",choices=["adult","kdd","acs","german", "compas" ,"bank_marketing","HIMS-Tunisia"], help="e.g. adult,kdd,acs,german,compas,bank_marketing,HIMS-Tunisia")
     parser.add_argument("--model", type=str, default="diffdp")
     parser.add_argument("--target_attr", type=str, default="income")
     parser.add_argument("--sensitive_attr", type=str, default="sex")
@@ -149,9 +149,9 @@ if __name__ == "__main__":
     elif args.dataset == "acs":
         X, y, s = load_acs_data( path= "../datasets/acs/raw", target_attr=args.target_attr, sensitive_attribute=args.sensitive_attr)
 
-    elif args.dataset == "migration":
-        print(f"Dataset: migration")
-        X, y, s = load_migration_data(path="../datasets/migration", sensitive_attribute=args.sensitive_attr)
+    elif args.dataset == "HIMS-Tunisia":
+        print(f"Dataset: HIMS-Tunisia")
+        X, y, s = load_hims_tunisia_data(path="../datasets/HIMS-Tunisia", sensitive_attribute=args.sensitive_attr)
 
     else:
         raise ValueError(f"Unknown dataset: {args.dataset}")

@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 import sys, io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# line_buffering=True so output appears line-by-line as it's produced. Without it,
+# TextIOWrapper defaults to block buffering (8 KB), so the pipeline looks "stuck"
+# (nothing prints after the first flushed line) until it exits — and it even
+# overrides `python -u`.
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
 
 """
 Entry point for the adversarial fairness pipeline.
@@ -33,21 +37,15 @@ def _check_ollama(host: str = "http://localhost:11434", timeout: int = 5) -> Non
     try:
         with urllib.request.urlopen(host, timeout=timeout) as resp:
             resp.read()
-        print(f"[ollama] Server reachable at {host}")
-    except urllib.error.URLError as e:
-        print("\n" + "=" * 60)
-        print("  ERROR: Ollama is not running.")
-        print(f"  Could not reach {host}")
-        print(f"  Reason: {e.reason}")
-        print()
-        print("  Start Ollama first:")
-        print("    Windows : open the Ollama app, or run  ollama serve")
-        print("    Then     : ollama pull llama3.1")
-        print("=" * 60 + "\n")
-        sys.exit(1)
+        print(f"[ollama] Server reachable at {host}", flush=True)
     except Exception as e:
-        print(f"\n[ollama] Unexpected error while checking Ollama: {e}")
-        print("Start Ollama and try again.\n")
+        reason = getattr(e, "reason", e)
+        print("\n" + "=" * 60, flush=True)
+        print("  ERROR: Ollama is not reachable — cannot start.", flush=True)
+        print(f"  Could not reach {host} ({reason})", flush=True)
+        print("", flush=True)
+        print("  Fix: open the Ollama app, or run:  ollama serve", flush=True)
+        print("=" * 60 + "\n", flush=True)
         sys.exit(1)
 
 
@@ -59,7 +57,7 @@ DATASET_PRESETS = {
     "kdd":     "datasets/census_income_kdd/raw/census-income.data",
     "bank":    "datasets/bank_marketing/raw/bank-additional-full.csv",
     "acs":     "datasets/acs/raw/2018/1-Year/psam_p06.csv",
-    "migration": "datasets/migration/migration.csv",
+    "HIMS-Tunisia": "datasets/HIMS-Tunisia/HIMS-Tunisia.csv",
 }
 
 # Datasets to run when no --dataset flag is given
@@ -67,11 +65,16 @@ ALL_DATASETS = ["adult", "bank", "compas", "german", "kdd", "acs", "utkface"]
 
 
 def _resolve_path(dataset_arg: str) -> tuple[str, str]:
-    """Return (dataset_path, dataset_name) for a preset key or raw path."""
+    """Return (dataset_path, dataset_name) for a preset key or raw path.
+
+    Preset matching is case-insensitive but the canonical-cased preset key is
+    returned as the dataset name (e.g. 'HIMS-Tunisia' for any casing input)."""
+    canon = {k.lower(): k for k in DATASET_PRESETS}
     key = dataset_arg.lower()
-    if key in DATASET_PRESETS:
+    if key in canon:
+        name = canon[key]
         base = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base, DATASET_PRESETS[key]), key
+        return os.path.join(base, DATASET_PRESETS[name]), name
     return dataset_arg, os.path.splitext(os.path.basename(dataset_arg))[0]
 
 
@@ -80,6 +83,7 @@ def _run_one(name: str, path: str, args) -> dict:
     print(f"\n{SEP}")
     print(f"  Dataset : {name.upper()}")
     print(f"  Path    : {path}")
+    print(f"  Seed    : {args.seed}")
     print(SEP)
 
     result = run_pipeline(
@@ -91,6 +95,7 @@ def _run_one(name: str, path: str, args) -> dict:
         initial_epochs=args.pretrain,
         device=args.device,
         target_override=args.target,
+        seed=args.seed,
     )
     return result
 
@@ -130,6 +135,8 @@ def main():
                         help="Pre-training epochs (default: 10)")
     parser.add_argument("--device",     type=str, default=None,
                         help="cpu or cuda (auto-detected if omitted)")
+    parser.add_argument("--seed",       type=int, default=42,
+                        help="Random seed for reproducibility (default: 42)")
     args = parser.parse_args()
 
     _check_ollama()

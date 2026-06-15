@@ -1,0 +1,36 @@
+# GPU environment for AADA (.venv_gpu) — Python 3.11 + CUDA 12.4
+#
+# Same stack as requirements.txt, but PyTorch is the CUDA 12.4 build so training
+# runs on the GPU. Versions are pinned to what this project was developed on.
+#
+# Setup on a CUDA 12.4 machine (Python 3.11 must be installed):
+#   py -3.11 -m venv .venv_gpu          # Windows
+#   .venv_gpu\Scripts\activate          # (Linux/macOS: source .venv_gpu/bin/activate)
+#   python -m pip install --upgrade pip
+#   pip install -r requirements_gpu.txt
+#
+# Notes:
+#   - The --extra-index-url line pulls the +cu124 torch wheels (Python 3.11 only;
+#     these wheels are not published for 3.13/3.14).
+#   - No CUDA GPU? Use requirements.txt instead (CPU PyTorch), no index URL needed.
+#   - Ollama is still required for the LLM step (see README) — not a pip package.
+
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+
+numpy==2.4.4
+pandas==2.3.3
+scikit-learn==1.9.0
+matplotlib==3.10.9
+seaborn==0.13.2
+streamlit==1.58.0
+plotly==6.8.0
+
+langchain==1.3.4
+langchain-core==1.4.1
+langchain-community==0.4.2
+langchain-ollama==1.1.0
+ollama==0.6.2
+
+wandb==0.27.2

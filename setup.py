@@ -97,6 +97,18 @@ else:
     os.remove(DATASETS_ZIP)
     print("  Datasets extracted and zip deleted.")
 
+    # Back-compat: the published datasets.zip ships the HIMS-Tunisia data under
+    # its old folder name ("migration/migration.csv"). The code now expects
+    # "HIMS-Tunisia/HIMS-Tunisia.csv" — rename it in place if needed.
+    _mig  = os.path.join(DATASETS_DIR, "migration")
+    _hims = os.path.join(DATASETS_DIR, "HIMS-Tunisia")
+    if os.path.isdir(_mig) and not os.path.isdir(_hims):
+        _old_csv = os.path.join(_mig, "migration.csv")
+        if os.path.exists(_old_csv):
+            os.rename(_old_csv, os.path.join(_mig, "HIMS-Tunisia.csv"))
+        os.rename(_mig, _hims)
+        print("  Renamed legacy 'migration/' dataset folder -> 'HIMS-Tunisia/'")
+
 
 # Step 3 — FFB results
 
@@ -104,7 +116,7 @@ step(3, "Download FFB benchmark results from WandB")
 
 results_dir = os.path.join(ROOT, "fair_fairness_benchmark", "results")
 existing    = [f for f in os.listdir(results_dir) if f.endswith(".json")
-               and not f.startswith("migration_")] if os.path.exists(results_dir) else []
+               and not f.startswith("HIMS-Tunisia_")] if os.path.exists(results_dir) else []
 
 if len(existing) > 100:
     print(f"  {len(existing)} result files already present — skipping.")

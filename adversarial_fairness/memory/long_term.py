@@ -8,7 +8,7 @@ Fingerprint-based warm-start: when starting a new run, the system searches
 ALL stored runs (across datasets) for a structurally similar one — same number
 of sensitive attributes with similar group imbalance and class balance. If a
 match is found (similarity >= 0.75), the lambda from that run's best iteration
-is used as a conservative starting point (50% safety factor, capped at 5.0).
+is used AS-IS as the starting point (full value — no halving, no cap).
 """
 
 import json
@@ -58,7 +58,7 @@ class LongTermMemory:
           n_samples_log10      : log10 of training-set size
           n_features_log10     : log10 of feature count
         """
-        sensitive = np.asarray(state.sensitive_train.numpy()
+        sensitive = np.asarray(state.sensitive_train.cpu().numpy()
                                if hasattr(state.sensitive_train, "numpy")
                                else state.sensitive_train, dtype=float)
         if sensitive.ndim == 1:
@@ -70,12 +70,12 @@ class LongTermMemory:
             imbalances.append(round(min(float(col.mean()), 1.0 - float(col.mean())), 4))
         imbalances.sort()   # order-independent: sort so attr ordering doesn't affect match
 
-        y = np.asarray(state.y_train.numpy()
+        y = np.asarray(state.y_train.cpu().numpy()
                        if hasattr(state.y_train, "numpy")
                        else state.y_train, dtype=float)
         target_balance = round(float(y.mean()), 4)
 
-        X = np.asarray(state.X_train.numpy()
+        X = np.asarray(state.X_train.cpu().numpy()
                        if hasattr(state.X_train, "numpy")
                        else state.X_train)
         return {
@@ -133,10 +133,12 @@ class LongTermMemory:
         fairness_final: Dict[str, Dict[str, float]] = None,
         fingerprint: dict = None,
         lambda_at_best: List[float] = None,
+        seed: int = None,
     ):
         key = self._key(dataset_name, target_col, sensitive_attrs)
         entry = {
             "timestamp":          datetime.now().isoformat(),
+            "seed":               seed,
             "lambda_final":       lambda_final,
             "lambda_at_best":     lambda_at_best or lambda_final,
             "p_rules_final":      p_rules_final,
@@ -149,6 +151,26 @@ class LongTermMemory:
             "fairness_final":     fairness_final or {},
             "fingerprint":        fingerprint or {},
         }
+        # Optional isolated output: when AADA_SAVE_MEMORY_FILE is set, the run is
+        # written ONLY to that file (loaded/accumulated independently), leaving the
+        # real long_term_memory.json untouched. Warm-start still reads self.data
+        # (the real file), so an isolated experiment runs under identical conditions
+        # without polluting the main memory or racing a concurrent sweep's writes.
+        save_path = os.environ.get("AADA_SAVE_MEMORY_FILE")
+        if save_path and save_path != self.path:
+            target: Dict[str, List[Dict[str, Any]]] = {}
+            if os.path.exists(save_path):
+                try:
+                    with open(save_path, "r") as f:
+                        target = json.load(f)
+                except (json.JSONDecodeError, IOError):
+                    target = {}
+            target.setdefault(key, []).append(entry)
+            target[key] = target[key][-10:]
+            with open(save_path, "w") as f:
+                json.dump(target, f, indent=2)
+            return
+
         if key not in self.data:
             self.data[key] = []
         self.data[key].append(entry)
@@ -160,22 +182,23 @@ class LongTermMemory:
         current_fingerprint: dict,
         n_sensitive: int,
         similarity_threshold: float = 0.75,
-        safety_factor: float = 0.50,
-        max_lambda: float = 5.0,
+        safety_factor: float = 1.0,
+        max_lambda: float = float("inf"),
     ) -> Tuple[Optional[List[float]], Optional[str]]:
         """
         Search ALL stored runs for a successful one whose fingerprint is
-        structurally similar to the current dataset.  Returns a conservative
-        warm-start lambda vector and a human-readable info string, or
-        (None, None) when no suitable match is found.
+        structurally similar to the current dataset.  Returns the warm-start
+        lambda vector and a human-readable info string, or (None, None) when no
+        suitable match is found.
 
-        Safety guarantees applied before returning:
+        Behaviour:
           - Only successful runs (all P-rules >= fairness threshold; accuracy
             is not limited and does not affect success).
           - lambda_at_best (lambda active at the best training iteration) is
             used, not lambda_final (which can still be climbing at run end).
-          - Each element multiplied by safety_factor (0.5).
-          - Each element capped at max_lambda (5.0).
+          - The matched lambda is used AS-IS (safety_factor defaults to 1.0 — no
+            halving — and no cap), so the new run starts from the full lambda of
+            the closest reference dataset.
         """
         best_sim = -1.0
         best_run = None

@@ -4,9 +4,40 @@ A unified fairness framework combining:
 - **Agentic Adversarial Debiasing** — our multi-agent adversarial fairness pipeline
 - **FFB Benchmark** — the Fair Fairness Benchmark (Han et al. ICLR 2024), as a comparison baseline
 
-This README is a **run guide**: how to set up the project, then run each part
-(our method, the FFB benchmark, the comparison, the dashboard) **separately**,
-including how to insert your own dataset.
+This README is a **run guide + brief method overview**: what AADA is, how to set
+up the project, then run each part (our method, the FFB benchmark, the
+comparison, the dashboard) **separately**, including how to insert your own dataset.
+
+---
+
+## How it works (AADA in brief)
+
+AADA reframes adversarial debiasing as **three cooperating agents**:
+
+- **Orchestrator** (`orchestrator.py` → `OrchestratorAgent`) — reads the dataset
+  schema, uses a locally-served **Llama 3.1 via Ollama** (`langchain`) to identify
+  the target and sensitive attributes, configures the pipeline, and at every
+  iteration updates a **per-attribute penalty vector λ** and checks the fairness
+  target. It also stores a memory of past runs (dataset fingerprint + best λ).
+- **Classifier** (utility-based agent) and **Adversary** (goal-based agent) —
+  the minimax pair (`models/agents.py`). The adversary sees only the classifier's
+  output Ŷ and tries to recover the sensitive attributes.
+
+Instead of a fixed penalty α chosen by a manual sweep, λ adapts **online** via a
+**momentum update with a running-maximum guard** (fully deterministic — no LLM in
+the training loop). A single adaptive run covers **all** sensitive attributes at
+once. Selection is **fairness-first**: training stops once the P-rule target (80%,
+the EEOC four-fifths rule) is met on every attribute, and the most accurate
+qualifying model is kept.
+
+**Momentum coefficient β = 0.7 (not the usual 0.9).** We ran the full 10-seed
+sweep at the common industry-default **β = 0.9** *and* at **β = 0.7**, and found
+**β = 0.7 converged in fewer iterations and gave a better fairness–accuracy
+trade-off** (β = 0.9 over-smooths the non-stationary adversarial signal). β = 0.7
+is therefore the default. The two seed sweeps are kept in
+`adversarial_fairness/beta07_test_memory.json` (β = 0.7) and
+`beta09_test_memory.json` (β = 0.9); the momentum effect is plotted in
+`adversarial_fairness/fig_momentum_convergence.png` (run `plot_momentum.py`).
 
 ---
 
@@ -14,11 +45,11 @@ including how to insert your own dataset.
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Python | 3.10+ | For the main system |
+| Python | 3.10 – 3.12 (3.11 recommended) | For the main system. CPU is fine for testing; a CUDA GPU only speeds up the large datasets (kdd/acs/utkface). |
 | Git | any | To clone the repo |
 | Ollama | latest | For LLM-based attribute detection (our method only) |
 | llama3.1 | — | 8B model, needs ~16 GB RAM free |
-| Conda (optional) | any | Only needed to **re-run** FFB training |
+| Conda (optional) | any | **Not needed to review** — FFB results already ship in the repo. Only needed to *re-run* FFB training from scratch. |
 
 ---
 
@@ -27,7 +58,7 @@ including how to insert your own dataset.
 ### 1 — Clone
 
 ```bash
-git clone https://github.com/yourname/adversarial_learning2
+git clone https://github.com/wassim-fathallah/adversarial_learning2
 cd adversarial_learning2
 ```
 
@@ -79,12 +110,48 @@ adversarial_learning2/
         ├── census_income_kdd/raw/census-income.data
         ├── acs/raw/2018/1-Year/psam_p06.csv
         ├── utkface/raw/age_gender.csv
-        └── migration/migration.csv
+        └── HIMS-Tunisia/HIMS-Tunisia.csv
 ```
 
 > ⚠️ **One location for ALL datasets** — both our system and the FFB scripts read
 > from `adversarial_fairness/datasets/`. Or run `python setup.py` to download +
 > extract automatically.
+>
+> 📌 **If you extract the zip manually** and see a `migration/migration.csv`
+> folder, rename it to `HIMS-Tunisia/HIMS-Tunisia.csv` (the dataset was renamed).
+> `python setup.py` does this rename for you automatically.
+
+---
+
+## Quick test (verify the install)
+
+Most checks need **no Ollama and no GPU** — they use the results already
+committed to the repo. From the repo root:
+
+```bash
+# 1. Core package imports cleanly
+.venv\Scripts\python -c "import sys; sys.path.insert(0,'adversarial_fairness'); import orchestrator, main, compare_ffb; print('imports OK')"
+
+# 2. Read the saved multi-seed results (mean ± std across seeds)
+.venv\Scripts\python adversarial_fairness/seeds/aggregate_seeds.py --dataset adult
+
+# 3. Regenerate the paper figures from the shipped data
+.venv\Scripts\python adversarial_fairness/plot_momentum.py        # momentum λ-trajectory
+.venv\Scripts\python fair_fairness_benchmark/make_aada_vs_ffb.py  # AADA vs FFB operating points
+
+# 4. Launch the dashboard (reads the shipped results)
+.venv\Scripts\python -m streamlit run unified_app.py
+```
+
+To test the **full pipeline end-to-end** (needs Ollama running + the dataset
+downloaded), run one small dataset:
+
+```bash
+.venv\Scripts\python adversarial_fairness/main.py --dataset adult --seed 14159
+```
+
+> ℹ️ A full run **appends** to `long_term_memory.json` (capped at 10 runs/dataset).
+> To keep the published results pristine while testing, copy that file first.
 
 ---
 
@@ -95,7 +162,7 @@ adversarial_learning2/
 ```bash
 # One built-in dataset
 .venv\Scripts\python adversarial_fairness/main.py --dataset adult
-.venv\Scripts\python adversarial_fairness/main.py --dataset migration
+.venv\Scripts\python adversarial_fairness/main.py --dataset HIMS-Tunisia
 
 # All built-in datasets, one after another
 .venv\Scripts\python adversarial_fairness/main.py
@@ -105,7 +172,7 @@ adversarial_learning2/
     --iterations 25 --epochs 50 --pretrain 10 --threshold 80
 ```
 
-**Built-in dataset keys:** `adult` `german` `compas` `bank` `kdd` `acs` `utkface` `migration`
+**Built-in dataset keys:** `adult` `german` `compas` `bank` `kdd` `acs` `utkface` `HIMS-Tunisia`
 
 **Flags** (`main.py`):
 
@@ -154,6 +221,22 @@ The memory key is derived from the file name; use `--name` to set it explicitly.
 
 ## C — Run the FFB benchmark
 
+> 📊 **Where the baseline results come from.** The FFB baseline operating points
+> shipped in `fair_fairness_benchmark/results/` (ERM, AdvDebias, PR, HSIC, LAFTR)
+> were **extracted from the official Fair Fairness Benchmark** public WandB
+> projects (Han et al., ICLR 2024) — re-fetch them anytime with
+> `download_ffb_wandb.py` (public, no account needed). The aggregated per-method
+> tables (`ERM_all.csv`, `ADV_all.csv`, `PRALL.csv`, `HSIC_all.csv`,
+> `LAFTR_all.csv`) are built from those runs. The **HIMS-Tunisia** dataset (new,
+> absent from FFB) and the **UTKFace adversarial** baseline were produced by us
+> using the same FFB implementations under `fair_fairness_benchmark/`.
+
+> ✅ **You can skip this whole section to review the work.** The FFB result
+> files already ship in the repo (`fair_fairness_benchmark/results/*.json`,
+> committed), so the comparison in section D works out of the box — no WandB
+> account, no conda env, no `requirements_ffb.txt` needed. Only do C if you want
+> to *regenerate* the FFB numbers from scratch.
+
 The FFB scripts do **not** need Ollama. Two ways to get FFB numbers:
 
 ### C.1 — Download the published FFB results (fast, recommended)
@@ -174,7 +257,7 @@ conda activate ffb_env
 pip install -r requirements_ffb.txt
 ```
 
-**Migration dataset (full sweep driver):**
+**HIMS-Tunisia dataset (full sweep driver):**
 ```bash
 python fair_fairness_benchmark/run_benchmark.py --no_wandb            # full sweep
 python fair_fairness_benchmark/run_benchmark.py --quick --no_wandb    # fast test
@@ -226,23 +309,26 @@ Opens at `http://localhost:8501` with three tabs:
 adversarial_learning2/
 ├── adversarial_fairness/        ← OUR method
 │   ├── main.py                  ← Entry point (section A/B)
-│   ├── orchestrator.py          ← 5-step pipeline
+│   ├── orchestrator.py          ← OrchestratorAgent — 5-step pipeline
 │   ├── state.py                 ← Global state shared across tools
 │   ├── compare_ffb.py           ← Comparison tables (section D)
-│   ├── long_term_memory.json    ← Saved runs
-│   ├── models/                  ← classifier.py, adversary.py
+│   ├── plot_momentum.py         ← Momentum λ-trajectory figure
+│   ├── long_term_memory.json    ← Saved runs (seed results + fingerprints)
+│   ├── models/                  ← classifier.py, image_classifier.py, adversary.py, agents.py
 │   ├── tools/                   ← data_tools, training_tools, lambda_tools
 │   ├── memory/                  ← short_term.py, long_term.py
-│   └── utils/                   ← metrics.py, plotting.py
+│   ├── utils/                   ← metrics.py, plotting.py
+│   └── seeds/                   ← multi-seed run scripts (run_multiple_seeds.py, aggregate_seeds.py, …)
 ├── fair_fairness_benchmark/     ← FFB benchmark (section C)
-│   ├── run_benchmark.py         ← Migration sweep driver
+│   ├── run_benchmark.py         ← HIMS-Tunisia sweep driver
+│   ├── make_aada_vs_ffb.py      ← operating-point figure (fig_aada_vs_ffb.png)
 │   ├── src/                     ← ffb_tabular_*.py method scripts
-│   └── results/                 ← FFB result JSONs
+│   └── results/                 ← FFB result JSONs (committed — ship with the repo)
 ├── unified_app.py               ← Dashboard (section E)
-├── download_ffb_wandb.py        ← FFB results downloader (section C.1)
+├── download_ffb_wandb.py        ← FFB results downloader (optional, section C.1)
 ├── setup.py                     ← Automated dataset setup
 ├── requirements.txt             ← venv deps (our method + dashboard)
-└── requirements_ffb.txt         ← conda deps (FFB training only)
+└── requirements_ffb.txt         ← FFB-retraining deps (OPTIONAL — see section C)
 ```
 
 ---

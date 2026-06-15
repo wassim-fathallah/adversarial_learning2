@@ -225,8 +225,17 @@ def evaluate(
     Returns a flat dict compatible with the rest of the code + nested fairness.
     """
     classifier.eval()
-    preds = classifier(X.to(device))
-    preds_np = preds.cpu().numpy().squeeze()
+    # Evaluate WITHOUT building the autograd graph and in mini-batches. The previous
+    # full-batch forward stored every layer's activations for the whole test set —
+    # fine for the tiny MLP, but for the image CNN the conv activations over thousands
+    # of images blow past GPU memory (CUDA OOM). no_grad + batching fixes that.
+    with torch.no_grad():
+        chunks = []
+        bs = 512
+        for i in range(0, X.shape[0], bs):
+            chunks.append(classifier(X[i:i + bs].to(device)).detach().cpu())
+        preds = torch.cat(chunks, dim=0)
+    preds_np = preds.numpy().squeeze()
     y_np     = y.cpu().numpy()
     s_np     = sensitive.cpu().numpy()
 

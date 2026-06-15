@@ -9,7 +9,9 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv_gpu/
 venv/
+env/
 
 # Jupyter notebooks
 *.ipynb
@@ -32,3 +34,24 @@ wandb/
 
 # FFB results — all included in repo (small, final-step only)
 # Nothing excluded here — all results/*.json are committed
+
+# Run logs and error dumps
+*.log
+*.err
+
+# Backup snapshots (memory swaps, insert-script .bak, etc.)
+*.bak
+*.bak_*
+long_term_memory.backup_*.json
+
+# Per-run training-curve plots (regenerated each run; paper figures are kept by name)
+*_training_curves.png
+
+# Downloaded dataset archive (setup.py fetches then deletes it)
+datasets.zip
+
+# WandB run dirs in any location
+**/wandb/
+
+# Local environment / secrets
+.env

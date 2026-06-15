@@ -27,20 +27,23 @@ except ImportError:
 ENTITY = "fair_benchmark"
 
 # Tabular datasets to include
-TARGET_TABULAR = {"adult", "german", "compas", "bank_marketing", "migration", "kdd", "acs"}
+TARGET_TABULAR = {"adult", "german", "compas", "bank_marketing", "HIMS-Tunisia", "kdd", "acs"}
 # Image datasets to include
 TARGET_IMAGE   = {"utkface"}
 
 # Save only the final step instead of full history — ~5 KB vs ~5 MB per file
 FINAL_ONLY = True
 
-# Tabular: ERM, AdvDebias, PR, HSIC, LAFTR
+# Tabular: ERM, AdvDebias, PR, HSIC, LAFTR, DiffDP, DiffEopp, DiffEodd
 TABULAR_PROJECTS = {
-    "exp1.erm":    "erm",
-    "exp1.adv_gr": "adv",
-    "exp1.pr":     "pr",
-    "exp1.hsic":   "hsic",
-    "exp1.laftr":  "laftr",
+    "exp1.erm":      "erm",
+    "exp1.adv_gr":   "adv",
+    "exp1.pr":       "pr",
+    "exp1.hsic":     "hsic",
+    "exp1.laftr":    "laftr",
+    "exp1.diffdp":   "diffdp",
+    "exp1.diffeopp": "diffeopp",
+    "exp1.diffeodd": "diffeodd",
 }
 
 # Image: ERM, PR, HSIC only — FFB has no AdvDebias or LAFTR for image data
@@ -82,7 +85,9 @@ def fetch_project(project_name, method_name, target_datasets, max_runs=None):
         # Extract metadata from run config or name
         dataset      = safe_get(cfg, "dataset",        "unknown")
         sensitive    = safe_get(cfg, "sensitive_attr",  safe_get(cfg, "sens_col", "unknown"))
-        lam          = safe_get(cfg, "lam",             safe_get(cfg, "alpha",    0.0))
+        # LAFTR's fairness coefficient is logged as "A_z" (not "lam"); fall back to it
+        # so LAFTR sweeps keep a real lambda label instead of collapsing to 0.0.
+        lam          = safe_get(cfg, "lam",             safe_get(cfg, "A_z", safe_get(cfg, "alpha", 0.0)))
         seed         = safe_get(cfg, "seed",            0)
         target_attr  = safe_get(cfg, "target_attr",    None)   # image datasets only
 

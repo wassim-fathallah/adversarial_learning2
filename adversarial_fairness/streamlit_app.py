@@ -16,16 +16,26 @@ from plotly.subplots import make_subplots
 
 MEMORY_FILE = os.path.join(os.path.dirname(__file__), "long_term_memory.json")
 COLORS = ["#e74c3c", "#2ecc71", "#9b59b6", "#f39c12", "#1abc9c"]
+BASE_DIR = os.path.dirname(__file__)
 
 
 # Data loading
 
 @st.cache_data(ttl=10)
-def load_memory():
-    if not os.path.exists(MEMORY_FILE):
+def load_memory(path: str = MEMORY_FILE):
+    if not os.path.exists(path):
         return {}
-    with open(MEMORY_FILE) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def find_backup_files() -> list[str]:
+    """Return all backup memory JSON files in the same directory, sorted newest first."""
+    files = []
+    for fname in os.listdir(BASE_DIR):
+        if fname.startswith("long_term_memory") and fname.endswith(".json") and fname != "long_term_memory.json":
+            files.append(fname)
+    return sorted(files, reverse=True)
 
 
 def group_by_dataset(memory: dict) -> dict[str, list[dict]]:
@@ -177,13 +187,28 @@ def main():
     )
     st.title("⚖️ Adversarial Fairness Training Dashboard")
 
-    if st.button("🔄 Refresh data"):
-        st.cache_data.clear()
+    # File picker — active memory or any backup
+    backups = find_backup_files()
+    options = ["long_term_memory.json (active)"] + backups
+    col_sel, col_btn = st.columns([4, 1])
+    with col_sel:
+        selected = st.selectbox("Memory file", options, index=0, label_visibility="collapsed")
+    with col_btn:
+        if st.button("🔄 Refresh"):
+            st.cache_data.clear()
 
-    memory = load_memory()
+    if selected.startswith("long_term_memory.json"):
+        memory_path = MEMORY_FILE
+    else:
+        memory_path = os.path.join(BASE_DIR, selected)
+
+    memory = load_memory(memory_path)
+
+    if selected != "long_term_memory.json (active)":
+        st.info(f"Viewing backup: **{selected}**")
 
     if not memory:
-        st.warning(f"No training data found at `{MEMORY_FILE}`.")
+        st.warning(f"No training data found at `{memory_path}`.")
         st.info("Run `python main.py --dataset adult` (or german/compas) to generate data.")
         return
 

@@ -18,6 +18,12 @@ class TrainingState:
     binarization_rules: Dict[str, Any] = field(default_factory=dict)
     columns_to_drop: List[str] = field(default_factory=list)
 
+    # Modality — "tabular" (MLP classifier) or "image" (CNN classifier).
+    # Detected from the dataset structure (and confirmed by the LLM) before training.
+    modality: str = "tabular"
+    pixel_column: str = ""           # name of the flattened-pixel / image column (image only)
+    image_shape: tuple = ()          # (C, H, W) once the pixel block is reshaped (image only)
+
     # Tensors
     X_train: Optional[torch.Tensor] = None
     X_test: Optional[torch.Tensor] = None

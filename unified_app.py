@@ -3,7 +3,7 @@ Unified Fairness Dashboard
 --------------------------
 Tab 1 — Agentic Adversarial Debiasing  : reads adversarial_fairness/long_term_memory.json
 Tab 2 — FFB Benchmark                  : reads fair_fairness_benchmark/results/*.json
-Tab 3 — Comparison — Migration         : both systems side by side
+Tab 3 — Comparison — HIMS-Tunisia      : both systems side by side
 """
 
 import json
@@ -37,7 +37,7 @@ st.title("⚖️ Adversarial Fairness — Thesis Dashboard")
 def load_my_memory():
     if not os.path.exists(MY_MEMORY):
         return {}
-    with open(MY_MEMORY) as f:
+    with open(MY_MEMORY, encoding="utf-8-sig") as f:
         return json.load(f)
 
 
@@ -47,7 +47,7 @@ def load_ffb_results():
     results = []
     for fpath in files:
         try:
-            with open(fpath) as f:
+            with open(fpath, encoding="utf-8-sig") as f:
                 data = json.load(f)
             if data.get("history"):
                 results.append(data)
@@ -93,7 +93,12 @@ def plot_my_run(run):
         fig.update_layout(title="Final P-rules (no iteration data)", height=300)
         return fig
 
-    xs = [m["iteration"] for m in iters]
+    # Separate iteration-0 (pretrain baseline) from adversarial iterations for
+    # distinct visual treatment — star marker, no line connecting to iter 1.
+    has_iter0 = iters and iters[0]["iteration"] == 0
+    adv_iters = iters[1:] if has_iter0 else iters
+    adv_xs    = [m["iteration"] for m in adv_iters]
+
     fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
                         subplot_titles=("Accuracy / F1 / ROC-AUC",
                                         "P-rule per Attribute",
@@ -101,27 +106,54 @@ def plot_my_run(run):
                                         "Adversary Loss"),
                         vertical_spacing=0.07)
 
-    fig.add_trace(go.Scatter(x=xs, y=[m["accuracy"] for m in iters],
+    # Accuracy / F1 / AUC — adversarial iterations
+    fig.add_trace(go.Scatter(x=adv_xs, y=[m["accuracy"] for m in adv_iters],
                              name="Accuracy", line=dict(color="royalblue"), mode="lines+markers"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=[m["f1_score"] for m in iters],
+    fig.add_trace(go.Scatter(x=adv_xs, y=[m["f1_score"] for m in adv_iters],
                              name="F1", line=dict(color="seagreen"), mode="lines+markers"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=[m["roc_auc"] for m in iters],
+    fig.add_trace(go.Scatter(x=adv_xs, y=[m["roc_auc"] for m in adv_iters],
                              name="AUC", line=dict(color="darkorchid"), mode="lines+markers"), row=1, col=1)
     fig.add_hline(y=0.80, line_dash="dash", line_color="gray", row=1, col=1)
 
+    # Pretrain baseline markers (iteration 0) — star + value label
+    if has_iter0:
+        m0 = iters[0]
+        fig.add_trace(go.Scatter(
+            x=[0], y=[m0["accuracy"]], name="Pretrain (acc)",
+            mode="markers+text",
+            marker=dict(symbol="star", size=14, color="royalblue"),
+            text=[f"{m0['accuracy']*100:.1f}%"],
+            textposition="top center",
+            showlegend=True), row=1, col=1)
+
+    # P-rule — adversarial iterations
     for i, attr in enumerate(attrs):
-        fig.add_trace(go.Scatter(x=xs, y=[m["p_rules"].get(attr, 0) for m in iters],
+        fig.add_trace(go.Scatter(x=adv_xs, y=[m["p_rules"].get(attr, 0) for m in adv_iters],
                                  name=f"P-rule ({attr})",
                                  line=dict(color=COLORS[i % len(COLORS)]), mode="lines+markers"), row=2, col=1)
     fig.add_hline(y=80, line_dash="dash", line_color="gray", row=2, col=1)
 
+    # Pretrain p-rule baseline markers (iteration 0) — star + value label
+    if has_iter0:
+        m0 = iters[0]
+        for i, attr in enumerate(attrs):
+            val = m0["p_rules"].get(attr, 0)
+            fig.add_trace(go.Scatter(
+                x=[0], y=[val],
+                name=f"Pretrain P-rule ({attr})",
+                mode="markers+text",
+                marker=dict(symbol="star", size=14, color=COLORS[i % len(COLORS)]),
+                text=[f"{val:.1f}%"],
+                textposition="top center",
+                showlegend=True), row=2, col=1)
+
     for i, attr in enumerate(attrs):
-        fig.add_trace(go.Scatter(x=xs,
-                                 y=[m["lambda"][i] if i < len(m.get("lambda", [])) else None for m in iters],
+        fig.add_trace(go.Scatter(x=adv_xs,
+                                 y=[m["lambda"][i] if i < len(m.get("lambda", [])) else None for m in adv_iters],
                                  name=f"λ ({attr})",
                                  line=dict(color=COLORS[i % len(COLORS)], dash="dot"), mode="lines+markers"), row=3, col=1)
 
-    fig.add_trace(go.Scatter(x=xs, y=[m.get("adv_loss", 0) for m in iters],
+    fig.add_trace(go.Scatter(x=adv_xs, y=[m.get("adv_loss", 0) for m in adv_iters],
                              name="Adv. Loss", line=dict(color="tomato"), mode="lines+markers"), row=4, col=1)
 
     fig.update_yaxes(title_text="Score", range=[0, 1.05], row=1, col=1)
@@ -202,7 +234,7 @@ OURS_CONFIG = {
                        "attr_map": {"age": "age"}},
     "utkface":        {"key": "utkface|age|ethnicity,gender",
                        "attr_map": {"gender": "Gender", "ethnicity": "Race"}},
-    "migration":      {"key": "migration|legal_entry|Gender,coastal_origin,educ_level",
+    "HIMS-Tunisia":   {"key": "HIMS-Tunisia|legal_entry|Gender,coastal_origin,educ_level",
                        "attr_map": {"Gender": "sex",
                                     "coastal_origin": "coastal_origin",
                                     "educ_level": "educ_level"}},
@@ -323,9 +355,7 @@ with tab_my:
             entry_path = tmp_paths[main_file]
             ds_name    = os.path.splitext(main_file)[0]
 
-            python = os.path.join(ROOT, "adversarial_fairness", ".venv", "Scripts", "python.exe")
-            if not os.path.exists(python):
-                python = sys.executable
+            python = sys.executable
 
             cmd = [
                 python,
@@ -339,8 +369,10 @@ with tab_my:
             ]
 
             st.info(f"Training **{ds_name}** — {len(uploaded_files)} file(s) uploaded")
+            modality_box = st.empty()   # prominent CNN/MLP decision banner
             log_box = st.empty()
             logs    = []
+            modality_shown = False
 
             with st.spinner("Training in progress…"):
                 proc = subprocess.Popen(
@@ -354,7 +386,20 @@ with tab_my:
                 )
                 for line in proc.stdout:
                     logs.append(line.rstrip())
-                    log_box.code("\n".join(logs[-30:]))
+                    # Surface the modality / classifier choice as soon as it appears in the log
+                    if not modality_shown:
+                        low = line.lower()
+                        if ("image -> cnn" in low) or ("[modality] detected: image" in low):
+                            modality_box.success(
+                                "🖼️ Detected an **IMAGE** dataset → using a **CNN** classifier")
+                            modality_shown = True
+                        elif ("tabular -> mlp" in low) or ("[modality] detected: tabular" in low):
+                            modality_box.info(
+                                "📋 Detected a **TABULAR** dataset → using an **MLP** classifier")
+                            modality_shown = True
+                    # st.text (not st.code) — avoids the syntax-highlighter JS module
+                    # that fails to load when streaming logs are re-rendered rapidly.
+                    log_box.text("\n".join(logs[-30:]))
                 proc.wait()
 
             # Clean up temp dir
@@ -446,9 +491,7 @@ with tab_ffb:
                                "sensitive_attrs": gen_sens, "drop_cols": []},
                               open(os.path.join(gdir, "config.json"), "w"), indent=2)
 
-                    python = os.path.join(ROOT, "adversarial_fairness", ".venv", "Scripts", "python.exe")
-                    if not os.path.exists(python):
-                        python = sys.executable
+                    python = sys.executable
                     cmd = [python, "run_generic_sweep.py", "--methods", ",".join(gen_methods),
                            "--sensitive_attrs", ",".join(gen_sens)]
                     if gen_seeds.startswith("Quick"):

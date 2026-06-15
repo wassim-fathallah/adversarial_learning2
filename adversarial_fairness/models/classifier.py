@@ -11,11 +11,11 @@ import torch.nn as nn
 
 
 class Classifier(nn.Module):
-    def __init__(self, n_features: int, n_hidden: int = 32):
+    def __init__(self, n_features: int, n_hidden: int = 256):
         super().__init__()
+        # 2 hidden layers of n_hidden neurons (FFB-matched tabular MLP, Appendix C).
         self.network = nn.Sequential(
             nn.Linear(n_features, n_hidden), nn.ReLU(), nn.Dropout(0.2),
-            nn.Linear(n_hidden, n_hidden),  nn.ReLU(), nn.Dropout(0.2),
             nn.Linear(n_hidden, n_hidden),  nn.ReLU(), nn.Dropout(0.2),
             nn.Linear(n_hidden, 1),
         )

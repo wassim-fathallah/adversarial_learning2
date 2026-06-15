@@ -19,8 +19,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from langchain.tools import tool
 
 from state import state
-from models.classifier import Classifier
-from models.adversary import Adversary
+from models.agents import ClassifierAgent, ImageClassifierAgent, AdversaryAgent
 from memory.short_term import ShortTermMemory
 from memory.long_term import LongTermMemory
 from utils.metrics import evaluate
@@ -32,9 +31,26 @@ from tools.lambda_tools import decide_lambda_for_iteration
 # Internal training helpers
 #
 
-def _make_loader(X, y, sensitive, batch_size=32):
+DATASET_BATCH_SIZES = {
+    "adult":   1024,
+    "bank":    1024,
+    "german":  32,
+    "compas":  32,
+    "kdd":     4096,
+    "acs":     4096,
+    "utkface": 128,
+    "hims-tunisia": 32,
+}
+
+def _make_loader(X, y, sensitive, batch_size=32, seed=42):
     dataset = TensorDataset(X, y.unsqueeze(1), sensitive)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True, generator=generator)
+
+
+def _batch_size_for(dataset_name: str) -> int:
+    return DATASET_BATCH_SIZES.get((dataset_name or "").lower(), 32)
 
 
 def _train_one_epoch_pretrain(classifier, adversary, clf_opt, adv_opt, loader, device):
@@ -155,9 +171,23 @@ def pretrain(n_epochs: int = 10) -> str:
     n_features  = state.X_train.shape[1]
     n_sensitive = state.sensitive_train.shape[1]
 
-    torch.manual_seed(42)
-    clf = Classifier(n_features).to(device)
-    adv = Adversary(n_sensitive=n_sensitive).to(device)
+    # Tabular MLP: 2 hidden layers of 256 neurons (FFB-matched, Appendix C).
+    # Image CNN: scale the dense-head width with the pixel count.
+    if state.modality == "image":
+        n_hidden = min(max(64, n_features // 8), 512) if n_features > 500 else 32
+    else:
+        n_hidden = 256
+
+    # Image datasets use the CNN predictor; tabular uses the MLP. The adversary,
+    # the lambda/momentum logic and the training loop are identical either way —
+    # only the predictor's feature extractor differs.
+    if state.modality == "image":
+        clf = ImageClassifierAgent(state.image_shape, n_hidden=n_hidden).to(device)
+        print(f"[model] IMAGE -> ResNet18 predictor | image_shape={state.image_shape}")
+    else:
+        clf = ClassifierAgent(n_features, n_hidden=n_hidden).to(device)
+        print(f"[model] TABULAR -> MLP predictor | n_features={n_features}  n_hidden={n_hidden}")
+    adv = AdversaryAgent(n_sensitive=n_sensitive, n_hidden=n_hidden).to(device)
 
     clf_opt = torch.optim.Adam(clf.parameters(), lr=1e-3)
     adv_opt = torch.optim.Adam(adv.parameters(), lr=1e-3)
@@ -167,7 +197,9 @@ def pretrain(n_epochs: int = 10) -> str:
     state.clf_optimizer = clf_opt
     state.adv_optimizer = adv_opt
 
-    loader = _make_loader(state.X_train, state.y_train, state.sensitive_train)
+    seed = getattr(state, 'seed', 42)
+    loader = _make_loader(state.X_train, state.y_train, state.sensitive_train,
+                          batch_size=_batch_size_for(state.dataset_name), seed=seed)
 
     print(f"\n[pretrain] Pre-training for {n_epochs} epochs...")
     for epoch in range(n_epochs):
@@ -181,13 +213,14 @@ def pretrain(n_epochs: int = 10) -> str:
         clf, state.X_test, state.y_test, state.sensitive_test,
         state.sensitive_attrs, device
     )
-    print(f"[pretrain] Initial → acc={metrics['accuracy']:.4f} | p_rules={metrics['p_rules']}")
+    print(f"[pretrain] Initial -> acc={metrics['accuracy']:.4f} | p_rules={metrics['p_rules']}")
 
     # Record the clean baseline accuracy — the accuracy this dataset can actually
     # reach before adversarial fairness pressure. The accuracy floor used during
     # training is derived from this (not a hardcoded 80%), so each dataset is
     # judged against what IT can achieve.
     state.baseline_accuracy = float(metrics["accuracy"])
+    state.initial_metrics   = metrics   # saved as iteration-0 by run_full_training
 
     state.total_epochs_run += n_epochs
 
@@ -252,7 +285,9 @@ def run_full_training(
     best_metrics_fallback = {}    # fallback — target never met, max min P-rule
     best_prule_fallback   = -1.0
 
-    loader = _make_loader(state.X_train, state.y_train, state.sensitive_train)
+    seed = getattr(state, 'seed', 42)
+    loader = _make_loader(state.X_train, state.y_train, state.sensitive_train,
+                          batch_size=_batch_size_for(state.dataset_name), seed=seed)
 
     device  = state.device
     clf     = state.classifier
@@ -274,8 +309,56 @@ def run_full_training(
     lambda_trajectory = []
     iteration_metrics = []
 
+    # Prepend iteration 0 — the post-pretrain baseline before any adversarial pressure.
+    # Shown in the chart as the starting point so the viewer sees where p-rules and
+    # accuracy were before debiasing began.
+    initial = getattr(state, "initial_metrics", None)
+    if initial:
+        iteration_metrics.append({
+            "iteration": 0,
+            "accuracy":  round(initial["accuracy"], 4),
+            "f1_score":  round(initial.get("f1_score", 0.0), 4),
+            "roc_auc":   round(initial.get("roc_auc", 0.0), 4),
+            "precision": round(initial.get("precision", 0.0), 4),
+            "p_rules":   {k: round(v, 2) for k, v in initial["p_rules"].items()},
+            "lambda":    [0.0] * len(state.sensitive_attrs),
+            "adv_loss":  0.0,
+        })
+
+    # Leave-from-pretraining: if the post-pretrain baseline already clears the P-rule
+    # target, the dataset is fair out of pretraining, so skip the adversarial phase
+    # entirely (no debiasing needed). Set AADA_FORCE_ADV=1 to run the loop anyway.
+    import os as _os_skip
+    baseline_prule = float(initial.get("min_p_rule", 0.0)) if initial else 0.0
+    if (initial is not None and baseline_prule >= p_rule_threshold
+            and _os_skip.environ.get("AADA_FORCE_ADV") != "1"):
+        print(f"\n  [LEAVE PRETRAINING] Baseline already fair: min P-rule="
+              f"{baseline_prule:.1f}% >= {p_rule_threshold}% — skipping the adversarial "
+              f"phase (no debiasing needed).\n")
+        best_metrics     = initial
+        best_acc_at_fair = initial.get("accuracy", 0.0)
+        final_metrics    = initial
+        lambda_trajectory.append([0.0] * len(state.sensitive_attrs))
+        state.current_iteration = -1          # iterations_run = current_iteration + 1 = 0
+        max_iterations = 0                     # the loop below becomes a no-op
+        # Plot just the baseline point so the saved chart isn't empty.
+        plotter.update(
+            iteration=0,
+            accuracy=initial["accuracy"],
+            p_rules=initial["p_rules"],
+            lambdas=[0.0] * len(state.sensitive_attrs),
+            adv_loss=0.0,
+            precision=initial.get("precision", 0.0),
+            f1=initial.get("f1_score", 0.0),
+            roc_auc=initial.get("roc_auc", 0.0),
+            fairness=initial.get("fairness", {}),
+        )
+
     for iteration in range(max_iterations):
         state.current_iteration = iteration
+
+        import os
+        os.environ["RUN_ITER"] = str(iteration + 1)
 
         # Train for epochs_per_step epochs
         epoch_task_losses, epoch_adv_losses = [], []
@@ -365,7 +448,11 @@ def run_full_training(
         # Early stopping — fairness target only (accuracy is not limited).
         # Stop as soon as all P-rules meet the threshold; the best-accuracy
         # iteration among the fair ones is selected post-hoc.
-        if prule >= p_rule_threshold:
+        # Set AADA_NO_EARLYSTOP=1 to run the FULL max_iterations (used by the
+        # momentum ablation so beta=0 keeps oscillating past the target instead
+        # of stopping at the first hit).
+        import os as _os_es
+        if prule >= p_rule_threshold and _os_es.environ.get("AADA_NO_EARLYSTOP") != "1":
             print(
                 f"  [EARLY STOP] FAIRNESS TARGET REACHED at iteration {iteration+1}:\n"
                 f"    min P-rule={prule:.1f}% >= {p_rule_threshold}%  |  acc={acc:.4f}"
@@ -461,6 +548,7 @@ def run_full_training(
         fairness_final=fairness_final,
         fingerprint=run_fingerprint,
         lambda_at_best=lambda_at_best,
+        seed=getattr(state, "seed", None),
     )
 
     plot_filename = f"{state.dataset_name}_training_curves.png" if state.dataset_name else "training_curves.png"

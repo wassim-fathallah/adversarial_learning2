@@ -26,8 +26,8 @@ python main.py
 python main.py --dataset adult
 python main.py --dataset adult --iterations 25 --epochs 50
 
-# Run the Migration dataset (standalone only — not in ALL_DATASETS):
-python main.py --dataset migration
+# Run the HIMS-Tunisia dataset (standalone only — not in ALL_DATASETS):
+python main.py --dataset HIMS-Tunisia
 
 # Streamlit dashboard (separate terminal):
 python -m streamlit run streamlit_app.py
@@ -37,7 +37,7 @@ Startup: main.py pings http://localhost:11434 before doing anything.
 If Ollama is not running → prints fix instructions → sys.exit(1).
 
 Standard datasets run in order: adult → bank → compas → german → kdd → acs → utkface
-Migration is NOT in ALL_DATASETS and must be run explicitly with --dataset migration.
+HIMS-Tunisia is NOT in ALL_DATASETS and must be run explicitly with --dataset HIMS-Tunisia.
 Missing dataset files are skipped gracefully. Final summary table printed at end.
 
 ---
@@ -92,7 +92,7 @@ adversarial_fairness/
 │   ├── census_income_kdd/raw/
 │   ├── acs/raw/
 │   ├── utkface/raw/
-│   └── migration/           # HIMS-Tunisia migration survey (added)
+│   └── HIMS-Tunisia/           # HIMS-Tunisia migration survey (added)
 └── utils/
     ├── metrics.py           # all metrics
     └── plotting.py          # training curves PNG saved after each run
@@ -112,7 +112,7 @@ Step 1 — identify_sensitive:
   LLM reads first 40 non-V columns + 1 sample value per column. Returns:
   sensitive_attrs, binarization_rules, target_col, columns_to_drop.
   Hardcoded fallbacks exist for the 7 standard datasets only.
-  Migration has NO hardcoded fallback — LLM must succeed.
+  HIMS-Tunisia has NO hardcoded fallback — LLM must succeed.
 
 Step 2 — load_dataset:
   Full preprocessing pipeline (see Dataset Handling section).
@@ -317,7 +317,7 @@ Long-term (long_term_memory.json):
 
 Before calling the LLM, `identify_sensitive` builds a compact schema:
   1. Filter out V-prefixed columns (`^V\d` regex) — raw survey codes used in
-     migration dataset; these are meaningless to the LLM.
+     HIMS-Tunisia dataset; these are meaningless to the LLM.
   2. Cap to first 40 columns (first 40 contain demographics for migration;
      last columns contain post-arrival outcome indices).
   3. One sample value per column shown to keep prompt short.
@@ -390,9 +390,9 @@ Standard (all 7 run automatically with `python main.py`):
             drops: SERIALNO, SPORDER, PWGTP, PWGTP1–PWGTP80 (replicate weights)
             subsampled to 100K (full file: ~378K rows, 280+ columns)
 
-Standalone (run separately with --dataset migration):
+Standalone (run separately with --dataset HIMS-Tunisia):
 
-  migration : datasets/migration/migration.csv
+  HIMS-Tunisia : datasets/HIMS-Tunisia/HIMS-Tunisia.csv
               Source: HIMS-Tunisia survey (High Impact Migration Survey)
               Rows: 3161 | Raw columns: ~305 (273 V-prefixed survey codes + ~32 clean)
               Target: legal_entry (legal authorization/entry status — LLM-identified)
@@ -404,7 +404,7 @@ Standalone (run separately with --dataset migration):
                 - First 40 columns shown to LLM (demographics are in early columns)
                 - LLM asked to pick 3 attrs across gender / geographic origin /
                   education dimensions (no column names hardcoded)
-              Run: python main.py --dataset migration
+              Run: python main.py --dataset HIMS-Tunisia
 
 ---
 
@@ -456,7 +456,7 @@ LLM used for ONE thing only:
   1. identify_sensitive — reads first 40 non-V columns + 1 sample value per column
      → returns sensitive attrs, binarization rules, target col, columns to drop.
      Hardcoded fallbacks cover all 7 standard datasets if LLM fails or picks wrong columns.
-     Migration: no fallback — LLM failure raises RuntimeError with root cause shown.
+     HIMS-Tunisia: no fallback — LLM failure raises RuntimeError with root cause shown.
 
 LLM guardrails in identify_sensitive:
   - If suggested target_col does not exist in dataset → use fallback (standard datasets only)
@@ -483,7 +483,7 @@ NOT used for:
   cause the model to predict all-negative → P-rule artificially 100%. Monitor F1.
 - ACS: 280+ columns including coded numeric fields (NAICSP, SOCP) dropped by
   the high-cardinality filter.
-- Migration: LLM attribute identification is sensitive to column ordering and prompt
+- HIMS-Tunisia: LLM attribute identification is sensitive to column ordering and prompt
   wording. The LLM tends to pick multiple geographic-origin columns if not guided
   toward diversity across dimensions. Re-runs may pick slightly different attrs since
   there is no hardcoded fallback.
@@ -504,7 +504,7 @@ NOT used for:
 | Multi-dataset runner     | separate command per dataset   | python main.py runs all 7 automatically  |
 | Ollama check             | no check                       | startup ping → exit if not running       |
 | Lambda control           | LLM per iteration              | deterministic momentum + running-max guard |
-| GPU OOM on large schemas | crashed on migration dataset   | direct ollama client with num_gpu=0      |
+| GPU OOM on large schemas | crashed on HIMS-Tunisia dataset   | direct ollama client with num_gpu=0      |
 
 ---
 
@@ -519,7 +519,7 @@ Strategy:
   - Same datasets, same metrics
   - Best run vs best run (accepted in fairness ML literature)
   - Our extras: F1, Equalized Odds, Equalized Opportunity, multi-dataset automation,
-    migration dataset (novel — not in benchmark), Streamlit dashboard for thesis demo
+    HIMS-Tunisia dataset (novel — not in benchmark), Streamlit dashboard for thesis demo
   - Benchmark results shown directly in Streamlit for side-by-side comparison
 
 ---

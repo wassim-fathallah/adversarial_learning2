@@ -12,7 +12,7 @@ from tabulate import tabulate
 import wandb
 import time
 
-from dataset import load_census_income_kdd_data,load_census_income_kdd_data,load_adult_data,load_german_data, load_compas_data, load_german_data, load_bank_marketing_data, load_acs_data, load_migration_data
+from dataset import load_census_income_kdd_data,load_census_income_kdd_data,load_adult_data,load_german_data, load_compas_data, load_german_data, load_bank_marketing_data, load_acs_data, load_hims_tunisia_data
 from results_logger import ResultsLogger
 from utils import seed_everything, PandasDataSet, print_metrics, clear_lines, InfiniteDataLoader
 from metrics import metric_evaluation
@@ -79,7 +79,7 @@ def test(model, test_loader, criterion, device, prefix="test", args=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, default="../datasets/adult/raw", help="Path to the dataset folder")
-    parser.add_argument("--dataset", type=str, default="adult", choices=["adult","kdd","acs","german", "compas" ,"bank_marketing","migration","generic"], help="Choose a dataset from the available options: adult, kdd, acs, german, compas, bank_marketing, migration, or generic (uploaded)")
+    parser.add_argument("--dataset", type=str, default="adult", choices=["adult","kdd","acs","german", "compas" ,"bank_marketing","HIMS-Tunisia","generic"], help="Choose a dataset from the available options: adult, kdd, acs, german, compas, bank_marketing, HIMS-Tunisia, or generic (uploaded)")
     parser.add_argument("--model", type=str, default="erm", help="Model type")
     parser.add_argument("--target_attr", type=str, default="income", help="Target attribute for prediction")
     parser.add_argument("--sensitive_attr", type=str, default="sex", help="Sensitive attribute for fairness analysis")
@@ -131,9 +131,9 @@ if __name__ == "__main__":
     elif args.dataset == "acs":
         X, y, s = load_acs_data( path= "../datasets/acs/raw", target_attr=args.target_attr, sensitive_attribute=args.sensitive_attr)
 
-    elif args.dataset == "migration":
-        print(f"Dataset: migration")
-        X, y, s = load_migration_data(path="../datasets/migration", sensitive_attribute=args.sensitive_attr)
+    elif args.dataset == "HIMS-Tunisia":
+        print(f"Dataset: HIMS-Tunisia")
+        X, y, s = load_hims_tunisia_data(path="../datasets/HIMS-Tunisia", sensitive_attribute=args.sensitive_attr)
 
     elif args.dataset == "generic":
         print(f"Dataset: generic (uploaded)")

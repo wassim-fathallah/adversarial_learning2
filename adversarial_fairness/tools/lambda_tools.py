@@ -9,6 +9,7 @@ Running-max guard:
   Once P-rule >= threshold → λ can decrease freely to recover accuracy.
 """
 
+import os
 import json
 import numpy as np
 from typing import List, Dict, Any
@@ -19,7 +20,10 @@ from memory.long_term import LongTermMemory
 
 
 LAMBDA_LEARNING_RATE = 2.5
-MOMENTUM_BETA        = 0.7
+# Default 0.7 (chosen setting — converges faster, ties/beats 0.9 on accuracy,
+# fairer on hard attributes). Override per-process with AADA_MOMENTUM_BETA
+# (e.g. =0.9) WITHOUT editing this constant.
+MOMENTUM_BETA        = float(os.environ.get("AADA_MOMENTUM_BETA", "0.7"))
 
 
 # Core momentum update
@@ -34,7 +38,7 @@ def decide_lambda_for_iteration(
     Per attribute:
       gap       = (threshold - P_rule) / 100
       increment = LAMBDA_LEARNING_RATE × gap
-      momentum  = 0.7 × old_momentum + 0.3 × increment
+      momentum  = 0.7 × old_momentum + 0.3 × increment   (β default 0.7)
       λ_new     = clamp(λ + momentum, 0, lambda_max)
 
     Running-max guard:
@@ -72,6 +76,17 @@ def decide_lambda_for_iteration(
         state.best_lambda_seen[i] = max(state.best_lambda_seen[i], lambda_i_new)
         updated.append(lambda_i_new)
 
+        import csv, os
+        log_file = os.environ.get("LAMBDA_LOG", "lambda_log.csv")
+        with open(log_file, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                os.environ.get("RUN_ITER", "?"),  # iteration
+                attr,                              # sex ou race
+                round(lambda_i_new, 4),            # valeur lambda
+                MOMENTUM_BETA                      # beta utilisé
+            ])
+
         print(
             f"  [λ] {attr}: p_rule={prule:.2f}%  gap={gap*100:.2f}%"
             f"  momentum={state.lambda_momentum[i]:.4f}"
@@ -91,17 +106,29 @@ def decide_initial_lambda(n_sensitive: int = 2) -> str:
 
     Strategy (in priority order):
       1. Already set this session (cached) — reuse.
-      2. Fingerprint match in long-term memory — warm start at 50% of the
-         lambda from the most structurally similar past successful run
-         (similarity >= 0.75; cap at 5.0 per attribute).
+      2. Fingerprint match in long-term memory — warm start at the FULL
+         lambda of the most structurally similar past successful run
+         (similarity >= 0.75; used as-is, no halving and no cap).
       3. Zero init — no relevant history found.
     """
+    n = len(state.sensitive_attrs) if state.sensitive_attrs else n_sensitive
+
+    # Known benchmark datasets always start from zero — overrides any cached value.
+    # Fingerprint warm-start is reserved for unknown/uploaded datasets.
+    KNOWN_DATASETS = {"adult", "compas", "german", "bank", "kdd", "acs", "utkface", "hims-tunisia"}
+    is_known = (state.dataset_name or "").lower() in KNOWN_DATASETS
+
+    if is_known:
+        lambdas = [0.0] * n
+        state.lambda_vector = lambdas
+        print(f"[λ-init] zero start (known dataset — always zero start): {lambdas}")
+        return json.dumps({"initial_lambda": lambdas, "source": "zero"}, indent=2)
+
+    # Unknown dataset: reuse cached value if already set this session
     if state.lambda_vector:
         return json.dumps({"initial_lambda": state.lambda_vector, "source": "cached"}, indent=2)
 
-    n = len(state.sensitive_attrs) if state.sensitive_attrs else n_sensitive
-
-    # Fingerprint-based warm start: requires data to be loaded into state
+    # Fingerprint-based warm start: only for unknown datasets
     if state.X_train is not None and state.sensitive_train is not None:
         try:
             lt = LongTermMemory()
@@ -119,5 +146,6 @@ def decide_initial_lambda(n_sensitive: int = 2) -> str:
 
     lambdas = [0.0] * n
     state.lambda_vector = lambdas
-    print(f"[λ-init] zero start: {lambdas}")
+    reason = "known dataset — always zero start" if is_known else "no fingerprint match"
+    print(f"[λ-init] zero start ({reason}): {lambdas}")
     return json.dumps({"initial_lambda": lambdas, "source": "zero"}, indent=2)

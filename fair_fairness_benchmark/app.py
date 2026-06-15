@@ -39,7 +39,7 @@ results = load_results()
 
 if not results:
     st.warning(f"No results found in `{RESULTS_DIR}`. Run the benchmark methods first.")
-    st.info("Example:\n```\ncd src\npython ffb_tabular_erm.py --dataset migration --sensitive_attr sex\n```")
+    st.info("Example:\n```\ncd src\npython ffb_tabular_erm.py --dataset HIMS-Tunisia --sensitive_attr sex\n```")
     st.stop()
 
 # ── Sidebar filters ──────────────────────────────────────────────────────────

@@ -411,16 +411,16 @@ def load_celeba_data(path="../datasets/celeba/raw/", sensitive_attribute="race")
 
     return X, attr
 
-def load_migration_data(path="../datasets/migration", sensitive_attribute="sex"):
+def load_hims_tunisia_data(path="../datasets/HIMS-Tunisia", sensitive_attribute="sex"):
     """
-    Migration dataset (Tunisia HIMS survey).
+    HIMS-Tunisia dataset (Tunisia HIMS survey).
     Target      : legal_entry  ("Yes" = 1)
     Sensitive   : sex/Gender ("Male"=1), coastal_origin ("Coastal"=1), educ_level (higher=1)
     """
     v_cols_pat = r'^V\d'
     id_cols = ["weight", "id_menage", "Id_Ind", "Poids_Final"]
 
-    df = pd.read_csv(os.path.join(path, "migration.csv"), low_memory=False)
+    df = pd.read_csv(os.path.join(path, "HIMS-Tunisia.csv"), low_memory=False)
 
     # Drop raw survey-code columns and administrative IDs
     drop = [c for c in df.columns if pd.Series([c]).str.match(v_cols_pat).any()] + \
@@ -453,7 +453,7 @@ def load_migration_data(path="../datasets/migration", sensitive_attribute="sex")
         if "Gender" not in categorical_features:
             categorical_features.append("Gender")
     else:
-        raise ValueError(f"Unknown sensitive_attribute for migration: {sensitive_attribute}. "
+        raise ValueError(f"Unknown sensitive_attribute for HIMS-Tunisia: {sensitive_attribute}. "
                          f"Choose from: sex, coastal_origin, educ_level")
 
     # Cast ALL remaining object/str columns to "string" dtype, then cast the rest to float32

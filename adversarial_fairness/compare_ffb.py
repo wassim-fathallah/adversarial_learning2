@@ -24,7 +24,7 @@ single operating point. So we show one row per (dataset, attr): the final result
 if the stop condition was reached, otherwise the best accuracy/best-P-rule point
 that was tracked. (Stored in long_term_memory.json.)
 
-Aggregation across seeds: MEAN. (10 seeds for FFB tabular datasets, 3 for migration.)
+Aggregation across seeds: MEAN. (10 seeds for FFB tabular datasets, 3 for HIMS-Tunisia.)
 
 Metric scale: FFB logs everything in percent (acc, prule, dp, eodd, eopp ∈ [0,100]).
 We keep that. "Ours" accuracy is stored as a fraction → multiplied by 100; P-rule is
@@ -67,11 +67,11 @@ METHOD_NAMES = {
 
 # Dataset display order + pretty names
 DATASET_ORDER = ["adult", "bank_marketing", "compas", "german", "kdd", "acs",
-                 "utkface", "migration"]
+                 "utkface", "HIMS-Tunisia"]
 DATASET_NAMES = {
     "adult": "Adult", "bank_marketing": "Bank", "compas": "COMPAS",
     "german": "German", "kdd": "KDD Census", "acs": "ACS Income",
-    "utkface": "UTKFace", "migration": "Migration",
+    "utkface": "UTKFace", "HIMS-Tunisia": "HIMS-Tunisia",
 }
 
 # How to read "Ours" out of long_term_memory.json, per FFB dataset name.
@@ -93,7 +93,7 @@ OURS_CONFIG = {
                        "attr_map": {"RAC1P": "race", "SEX": "sex"}},
     "utkface":        {"key": "utkface|age|ethnicity,gender",
                        "attr_map": {"gender": "Gender", "ethnicity": "Race"}},
-    "migration":      {"key": "migration|legal_entry|Gender,educ_level,region_origin",
+    "HIMS-Tunisia":   {"key": "HIMS-Tunisia|legal_entry|Gender,educ_level,region_origin",
                        "attr_map": {"Gender": "sex",
                                     "region_origin": "coastal_origin",
                                     "educ_level": "educ_level"}},

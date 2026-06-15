@@ -3,6 +3,11 @@ from sklearn import metrics
 from scipy.stats import gaussian_kde
 from statsmodels.distributions.empirical_distribution import ECDF
 
+# NumPy 2.x removed np.trapz (renamed to np.trapezoid). ABCC() below still calls
+# np.trapz, so shim it back for forward-compatibility with NumPy >= 2.0.
+if not hasattr(np, "trapz"):
+    np.trapz = np.trapezoid
+
 def CV():
     # CalderVerwer
     pass

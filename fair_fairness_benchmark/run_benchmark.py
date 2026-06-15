@@ -1,9 +1,9 @@
 """
-Run the FFB benchmark on the migration dataset exactly as in the FFB paper.
+Run the FFB benchmark on the HIMS-Tunisia dataset exactly as in the FFB paper.
 - Sweeps all lambda values from Table 6 of the paper
 - Runs all 3 sensitive attributes: sex, coastal_origin, educ_level
 - Runs 3 seeds for reliability
-- Logs every run to WandB (project: ffb_migration)
+- Logs every run to WandB (project: ffb_HIMS-Tunisia)
 
 Usage:
     python run_benchmark.py                  # full sweep (~hours)
@@ -94,7 +94,7 @@ def run_one(script, lam, sensitive_attr, seed, extra_args, skip_common, lam_arg,
 
     common = {
         "--num_training_steps": "150",
-        "--batch_size":         "128",
+        "--batch_size":         "32",
         "--wandb_project":      wandb_project,
     }
     # Remove args this script doesn't support
@@ -102,10 +102,10 @@ def run_one(script, lam, sensitive_attr, seed, extra_args, skip_common, lam_arg,
         common.pop(k, None)
 
     cmd = [sys.executable, os.path.join(SRC, script),
-           "--dataset",        "migration",
+           "--dataset",        "HIMS-Tunisia",
            "--sensitive_attr", sensitive_attr,
            "--seed",           str(seed),
-           "--exp_name",       f"migration_{method_name}_{sensitive_attr}_lam{lam}_seed{seed}",
+           "--exp_name",       f"HIMS-Tunisia_{method_name}_{sensitive_attr}_lam{lam}_seed{seed}",
     ]
     for k, v in common.items():
         cmd += [k, v]
@@ -144,7 +144,7 @@ def main():
     parser.add_argument("--method",   type=str, default=None, help="Run a single method (e.g. erm, hsic, adv)")
     parser.add_argument("--sens",     type=str, default=None, help="Single sensitive attr (sex, coastal_origin, educ_level)")
     parser.add_argument("--seed",     type=int, default=None, help="Single seed")
-    parser.add_argument("--wandb_project", type=str, default="ffb_migration", help="WandB project name")
+    parser.add_argument("--wandb_project", type=str, default="ffb_HIMS-Tunisia", help="WandB project name")
     parser.add_argument("--no_wandb", action="store_true", help="Run in offline mode (no WandB upload)")
     parser.add_argument("--dry_run",  action="store_true", help="Print commands without running")
     args = parser.parse_args()
@@ -158,7 +158,7 @@ def main():
         for m in methods
     )
 
-    print(f"\nFFB Migration Benchmark Sweep")
+    print(f"\nFFB HIMS-Tunisia Benchmark Sweep")
     print(f"  Methods         : {list(methods.keys())}")
     print(f"  Sensitive attrs : {sens_attrs}")
     print(f"  Seeds           : {seeds}")
