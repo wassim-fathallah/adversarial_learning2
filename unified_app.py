@@ -538,7 +538,10 @@ with tab_ffb:
                          if r["metadata"]["dataset"] == sel_ds
                          and r["metadata"]["sensitive_attr"] == sel_sens]
 
-        methods_ffb  = sorted(set(r["metadata"]["method"] for r in filtered_base))
+        # Hide the diff* variants from the FFB tab (not part of the comparison)
+        _HIDE_FFB = {"diffdp", "diffeopp", "diffeodd"}
+        methods_ffb  = sorted({r["metadata"]["method"] for r in filtered_base
+                               if r["metadata"]["method"].lower() not in _HIDE_FFB})
         seeds_ffb    = sorted(set(r["metadata"]["seed"]   for r in filtered_base))
 
         # Default to ALL — never show empty results by accident
