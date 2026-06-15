@@ -303,6 +303,36 @@ Opens at `http://localhost:8501` with three tabs:
 
 ---
 
+## Hardware & compute
+
+All experiments were run on a single modest laptop GPU — no cluster, every run
+sequential:
+
+| Component | Spec |
+|-----------|------|
+| GPU | NVIDIA GeForce GTX 1070 — 8 GB VRAM |
+| CPU | Intel Core i7-8750H |
+| System RAM | 16 GB |
+| Logical processors | 12 |
+
+Because runs executed one after another on this one GPU, the seed program was
+time-consuming. Counting the stored runs:
+
+| Momentum sweep | Runs | Adversarial iterations | Training epochs |
+|----------------|-----:|-----------------------:|----------------:|
+| β = 0.7 (default) | 66 | 756 | 36,076 |
+| β = 0.9 (industry default, for comparison) | 66 | 1,008 | 48,300 |
+| **Total** | **132** | **1,764** | **84,376** |
+
+That is **132 full AADA runs (~84k training epochs)** on a single GTX 1070, which
+took **on the order of several days of wall-clock time**. It also underlines why
+AADA's **single adaptive run per seed** matters: the fixed-penalty baselines need
+a 14-value α sweep × (number of sensitive attributes) *per dataset per seed* — up
+to 42 runs/seed on HIMS-Tunisia — whereas AADA replaces that whole sweep with one
+run.
+
+---
+
 ## Project structure
 
 ```
