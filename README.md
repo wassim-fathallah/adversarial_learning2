@@ -278,11 +278,11 @@ side. Launch it:
 ```
 
 Opens at `http://localhost:8501` with three tabs:
-- **⚙️ Agentic Adversarial Debiasing** — **our results**: per dataset, each of the
+- ** Agentic Adversarial Debiasing** — **our results**: per dataset, each of the
   **10 seed runs** (accuracy, per-attribute P-rules, λ trajectory, fingerprint),
   read from `long_term_memory.json`.
-- **📊 FFB Benchmark** — the **FFB baseline results** (`fair_fairness_benchmark/results/`).
-- **🔬 Comparison** — our method vs FFB, **side by side**.
+- ** FFB Benchmark** — the **FFB baseline results** (`fair_fairness_benchmark/results/`).
+- ** Comparison** — our method vs FFB, **side by side**.
 
 ---
 
