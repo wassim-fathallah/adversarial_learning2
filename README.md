@@ -40,9 +40,16 @@ AADA reframes adversarial debiasing as **three cooperating agents**:
   the target and sensitive attributes, configures the pipeline, and at every
   iteration updates a **per-attribute penalty vector λ** and checks the fairness
   target. It also stores a memory of past runs (dataset fingerprint + best λ).
-- **Classifier** (utility-based agent) and **Adversary** (goal-based agent) —
-  the minimax pair (`models/agents.py`). The adversary sees only the classifier's
-  output Ŷ and tries to recover the sensitive attributes.
+- **Classifier** (utility-based agent, `models/agents.py` → `ClassifierAgent`) —
+  predicts the target label. It is trained to be **accurate** while
+  simultaneously **fooling the adversary**, i.e. producing a representation from
+  which the sensitive attributes can no longer be recovered.
+- **Adversary** (goal-based agent, `models/agents.py` → `AdversaryAgent`) — the
+  classifier's opponent in the minimax game. It sees **only the classifier's
+  output Ŷ** (never the raw features or labels) and tries to **recover the
+  sensitive attributes** from it. The better the adversary predicts them, the
+  larger the penalty λ applied back to the classifier — so the two agents
+  compete: the adversary exposes leakage, the classifier learns to remove it.
 
 Instead of a fixed penalty α chosen by a manual sweep, λ adapts **online** via a
 **momentum update with a running-maximum guard** (fully deterministic — no LLM in
@@ -116,7 +123,7 @@ Ollama powers Step 1 of our pipeline (sensitive-attribute identification).
 
 ### 4 — Datasets (one location for everything)
 
-[**Download datasets.zip (Dropbox)**](https://www.dropbox.com/scl/fi/i5wsw0u0upsgscm5hxf5w/datasets.zip?rlkey=y742gn4k1ptn4ov8keuv6ok2o&st=pxpjbukm&dl=1)
+[**Download datasets.zip (Dropbox)**](https://www.dropbox.com/scl/fi/i5wsw0u0upsgscm5hxf5w/datasets.zip?rlkey=y742gn4k1ptn4ov8keuv6ok2o&st=pxpjbukm&e=1&dl=1)
 
 Extract into `adversarial_fairness/datasets/` so the structure is:
 

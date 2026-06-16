@@ -25,7 +25,7 @@ PIP      = os.path.join(VENV, "Scripts", "pip.exe")    if sys.platform == "win32
 
 DATASETS_URL = (
     "https://www.dropbox.com/scl/fi/i5wsw0u0upsgscm5hxf5w/datasets.zip"
-    "?rlkey=y742gn4k1ptn4ov8keuv6ok2o&st=pxpjbukm&dl=1"
+    "?rlkey=y742gn4k1ptn4ov8keuv6ok2o&st=pxpjbukm&e=1&dl=1"
 )
 DATASETS_ZIP = os.path.join(ROOT, "datasets.zip")
 DATASETS_DIR = os.path.join(ROOT, "adversarial_fairness", "datasets")
