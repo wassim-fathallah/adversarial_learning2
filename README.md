@@ -10,6 +10,27 @@ comparison, the dashboard) **separately**, including how to insert your own data
 
 ---
 
+## ▶ See the results (start here)
+
+To view everything — our **10-seed results per dataset**, the **FFB baselines**,
+and the **side-by-side comparison** — launch the dashboard:
+
+```bash
+.venv\Scripts\python -m streamlit run unified_app.py        # opens http://localhost:8501
+```
+
+Three tabs:
+- **⚙️ Agentic Adversarial Debiasing** — our results: per dataset, each of the **10 seed runs** (accuracy, per-attribute P-rules, λ trajectory, fingerprint).
+- **📊 FFB Benchmark** — the FFB baseline results.
+- **🔬 Comparison** — our method vs FFB, side by side.
+
+> First time? Do the one-time **[Setup](#setup-do-once)** below, then run this.
+> Viewing results needs **no Ollama and no datasets** — everything ships with the
+> repo. The sections further down are only for *re-running* the method, adding your
+> own data, or the FFB benchmark.
+
+---
+
 ## How it works (AADA in brief)
 
 AADA reframes adversarial debiasing as **three cooperating agents**:
@@ -193,7 +214,7 @@ downloaded), run one small dataset:
 
 Results (metrics, lambda trajectory, dataset fingerprint) are saved to
 `adversarial_fairness/long_term_memory.json` — **view them (all 10 seeds per
-dataset, FFB baselines, and side-by-side) in the dashboard, section E.**
+dataset, FFB baselines, and side-by-side) in the dashboard ([See the results](#-see-the-results-start-here)).**
 
 ---
 
@@ -227,7 +248,7 @@ baseline results (**ERM, AdvDebias, PR, HSIC, LAFTR**) for every dataset are
 **committed to this repo** in `fair_fairness_benchmark/results/*.json`, together
 with the aggregated tables `ERM_all.csv`, `ADV_all.csv`, `PRALL.csv`,
 `HSIC_all.csv`, `LAFTR_all.csv`. So the comparison (section D) and the dashboard
-(section E) work straight out of the box — no WandB account, no conda env, no
+(at the top) work straight out of the box — no WandB account, no conda env, no
 re-download.
 
 > **Provenance.** These baselines were extracted from the official **Fair Fairness
@@ -238,7 +259,7 @@ re-download.
 
 ### Run your OWN dataset through the FFB algorithms
 
-**Easiest — the dashboard (section E).** The FFB tab has an upload that runs
+**Easiest — the dashboard (top of this README).** The FFB tab has an upload that runs
 ERM / AdvDebias / PR / HSIC / LAFTR on your CSV and shows the results.
 
 **CLI** — put your data + a small config in `fair_fairness_benchmark/datasets/generic/`,
@@ -265,24 +286,6 @@ After you have results from both A and C, generate the comparison tables
 ```
 
 Writes `comparison_tables.tex` and `comparison_data.csv` into `adversarial_fairness/`.
-
----
-
-## E — View all results (dashboard)
-
-The dashboard is the main way to **see the results** — ours, FFB's, and side by
-side. Launch it:
-
-```bash
-.venv\Scripts\python -m streamlit run unified_app.py
-```
-
-Opens at `http://localhost:8501` with three tabs:
-- **⚙️ Agentic Adversarial Debiasing** — **our results**: per dataset, each of the
-  **10 seed runs** (accuracy, per-attribute P-rules, λ trajectory, fingerprint),
-  read from `long_term_memory.json`.
-- **📊 FFB Benchmark** — the **FFB baseline results** (`fair_fairness_benchmark/results/`).
-- **🔬 Comparison** — our method vs FFB, **side by side**.
 
 ---
 
@@ -337,7 +340,7 @@ adversarial_learning2/
 │   ├── make_aada_vs_ffb.py      ← operating-point figure (fig_aada_vs_ffb.png)
 │   ├── src/                     ← ffb_tabular_*.py method scripts
 │   └── results/                 ← FFB result JSONs (committed — ship with the repo)
-├── unified_app.py               ← Dashboard (section E)
+├── unified_app.py               ← Dashboard (see "See the results" at top)
 ├── download_ffb_wandb.py        ← FFB results downloader (optional, section C.1)
 ├── setup.py                     ← Automated dataset setup
 ├── requirements.txt             ← venv deps (our method + dashboard)
