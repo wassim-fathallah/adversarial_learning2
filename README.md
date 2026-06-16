@@ -95,7 +95,7 @@ Ollama powers Step 1 of our pipeline (sensitive-attribute identification).
 
 ### 4 — Datasets (one location for everything)
 
-[**Download datasets.zip (Dropbox)**](https://www.dropbox.com/scl/fi/6t0jh1n5v7y2tr35bkidq/datasets.zip?rlkey=2xkqwavfcqb56c7ybavzcm9ga&st=93ediu4h&dl=1)
+[**Download datasets.zip (Dropbox)**](https://www.dropbox.com/scl/fi/i5wsw0u0upsgscm5hxf5w/datasets.zip?rlkey=y742gn4k1ptn4ov8keuv6ok2o&st=pxpjbukm&dl=0)
 
 Extract into `adversarial_fairness/datasets/` so the structure is:
 
