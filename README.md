@@ -156,12 +156,12 @@ committed to the repo. From the repo root:
 # 2. Read the saved multi-seed results (mean ± std across seeds)
 .venv\Scripts\python adversarial_fairness/seeds/aggregate_seeds.py --dataset adult
 
-# 3. Regenerate the paper figures from the shipped data
+# 3. Launch the dashboard (reads the shipped results)
+.venv\Scripts\python -m streamlit run unified_app.py
+
+# 4. Regenerate the paper figures from the shipped data
 .venv\Scripts\python adversarial_fairness/plot_momentum.py        # momentum λ-trajectory
 .venv\Scripts\python fair_fairness_benchmark/make_aada_vs_ffb.py  # AADA vs FFB operating points
-
-# 4. Launch the dashboard (reads the shipped results)
-.venv\Scripts\python -m streamlit run unified_app.py
 ```
 
 To test the **full pipeline end-to-end** (needs Ollama running + the dataset
