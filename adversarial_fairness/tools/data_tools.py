@@ -7,6 +7,7 @@ identify_sensitive — LLM reads column names/types and returns sensitive attrs
 """
 
 import json
+import os
 import re
 import pandas as pd
 import numpy as np
@@ -16,19 +17,31 @@ from sklearn.preprocessing import StandardScaler
 from langchain.tools import tool
 from langchain_ollama import OllamaLLM
 
+import agent_log
 from state import state
 
-# LLM shared instance (tools import this too)
-OLLAMA_MODEL = "llama3.1"   # must be a model pulled in Ollama (run: ollama list)
+# LLM model. Overridable from the interface (model picker) via AADA_LLM_MODEL or
+# main.py --model; defaults to a model that must be pulled in Ollama (ollama list).
+OLLAMA_MODEL = os.environ.get("AADA_LLM_MODEL", "llama3.1")
 
-# CPU-pinned (num_gpu=0) to avoid GPU OOM on large schemas — same options as
-# the previous raw-ollama call, now routed through LangChain.
-llm = OllamaLLM(model=OLLAMA_MODEL, temperature=0.1, num_gpu=0)
+# Built lazily on first use (not at import) so a model selected on the CLI/interface
+# is honoured even though this module is imported before main() parses its args. The
+# env is re-read each construction; CPU-pinned (num_gpu=0) to avoid GPU OOM on large
+# schemas — same options as the previous raw-ollama call, now routed through LangChain.
+_llm = None
+
+
+def _get_llm():
+    global _llm
+    if _llm is None:
+        model = os.environ.get("AADA_LLM_MODEL", OLLAMA_MODEL)
+        _llm = OllamaLLM(model=model, temperature=0.1, num_gpu=0)
+    return _llm
 
 
 def _llm_invoke(prompt: str) -> str:
     """Sensitive-attribute identification LLM call, via the LangChain OllamaLLM."""
-    return llm.invoke(prompt)
+    return _get_llm().invoke(prompt)
 
 
 #
@@ -150,6 +163,43 @@ def _binarize_column(series: pd.Series, rule: dict) -> pd.Series:
             vals = list(series.dropna().unique())
         pos = vals[1] if len(vals) > 1 else vals[0]
         return (series == pos).astype(int)
+
+
+# Custom multi-group buckets for the grouped (four-fifths) P-rule. The metric scores
+# disparity across these real-world groups instead of the binary training split.
+# Each map sends raw category -> bucket name; anything unmapped falls into "_default".
+# region_origin (7 govern. groups) -> 3 buckets: Center-West (most disadvantaged,
+#   baseline 0.56), Greater Tunis (most advantaged, 0.92), Others (everything else).
+# educ_level (5 levels) -> 3 buckets: Low (No education + Primary, ~0.67, ~609 rows) /
+#   Mid (Vocational + Secondary, ~0.70) / Higher education (0.95). The enlarged low
+#   bucket is less noisy than No-education-alone (~125 rows); baseline P-rule ~71%.
+HIMS_GROUPED_PRULE_BUCKETS = {
+    "region_origin": {
+        "_map": {"Center-West": "Center-West", "Greater Tunis": "Greater Tunis"},
+        "_default": "Others",
+    },
+    "educ_level": {
+        "_map": {"No education": "Low", "Primary": "Low", "Higher education": "Higher education"},
+        "_default": "Mid",
+    },
+}
+
+
+def _grouped_bucket_codes(series: pd.Series, spec: dict):
+    """Map a raw categorical column onto custom buckets.
+
+    `spec` = {"_map": {raw_value: bucket}, "_default": bucket}. Bucket identity is what
+    matters for the P-rule (the integer code itself is arbitrary), so we factorize the
+    resulting bucket labels. Returns (codes 0..K-1, {code: bucket_label}); the label
+    map lets the report name the groups instead of showing "group 0/1/2".
+    """
+    default = spec.get("_default", "Other")
+    mapping = spec.get("_map", {})
+    buckets = series.map(lambda v: mapping.get(v, default))
+    cat = pd.Categorical(buckets)
+    codes = cat.codes.astype(np.int64)
+    labels = {int(i): str(lbl) for i, lbl in enumerate(cat.categories)}
+    return codes, labels
 
 
 #
@@ -301,16 +351,24 @@ def identify_sensitive(dataset_path: str, dataset_name: str = "") -> str:
         "kdd":     {"sensitive_attrs": ["race", "sex"], "binarization_rules": {"race": {"positive_value": "White"}, "sex": {"positive_value": "Male"}}, "target_col": "income", "columns_to_drop": ["instance_weight"], "justification": "fallback"},
         "bank":    {"sensitive_attrs": ["age"], "binarization_rules": {"age": {"threshold": 40}}, "target_col": "y", "columns_to_drop": [], "justification": "fallback"},
         "acs":     {"sensitive_attrs": ["RAC1P", "SEX"], "binarization_rules": {"RAC1P": {"positive_value": 1}, "SEX": {"positive_value": 1}}, "target_col": "PINCP", "columns_to_drop": ["RT", "SERIALNO", "SPORDER", "PUMA", "ADJINC", "PWGTP", "POVPIP", "PERNP", "WAGP", "SEMP", "INTP", "OIP", "RETP", "SSIP", "SSP", "PAP", "FPINCP", "RAC2P", "RAC3P", "RACBLK", "RACWHT", "RACASN", "RACAIAN", "RACNH", "RACPI", "RACSOR", "RACNUM"] + [f"PWGTP{i}" for i in range(1, 81)], "justification": "fallback"},
+        # HIMS-Tunisia is curated like the other benchmarks: the local LLM is unreliable
+        # here (it picked target=destination_europe and dropped 0/7 proxies in testing),
+        # so we pin the config. region_origin is binarized to the disadvantaged interior
+        # (Center-West) below; the drop list removes IDs/weights AND the 7 sensitive
+        # proxies (greater_tunis/Center_East/coastal_origin -> region_origin;
+        # higher_educ -> educ_level; france/ita/ger -> redundant destination dummies).
+        "HIMS-Tunisia": {"sensitive_attrs": ["Gender", "region_origin", "educ_level"], "binarization_rules": {"Gender": {"positive_value": "Female"}, "region_origin": {"positive_value": "Center-West"}, "educ_level": {"positive_value": "Higher education"}}, "target_col": "legal_entry", "columns_to_drop": ["id_menage", "Id_Ind", "weight", "Poids_Final", "greater_tunis", "Center_East", "coastal_origin", "higher_educ", "france", "ita", "ger"], "justification": "curated — local LLM unreliable on target and proxies"},
     }
 
-    # Cap schema at 40 columns to keep the prompt small. For most datasets the
-    # demographics/target sit up front, so the first 40 are enough. BUT some wide
-    # files put them late — ACS PUMS (286 cols) has SEX@68, PINCP@103, RAC1P@111
-    # and KDD has income@41 — so we ALWAYS additionally keep the recognized
-    # dataset's target + sensitive columns. Without this the LLM never sees them
-    # and cannot possibly pick them (and the guardrails can't catch it because the
-    # wrong-but-existing target it picks instead passes the "exists" check).
-    MAX_SCHEMA_COLS = 40
+    # Cap schema to keep the prompt manageable for the local model. Set high enough
+    # that ordinary-width datasets (e.g. HIMS-Tunisia: 72 columns after the V-survey
+    # codes are removed) are shown IN FULL, so the LLM can see and drop late columns
+    # such as sensitive-attribute proxies — without a cap, very wide files (ACS PUMS:
+    # 286 cols) would still blow up the prompt, so they are trimmed and we ALWAYS
+    # additionally keep the recognized dataset's target + sensitive columns (otherwise
+    # the LLM never sees them and cannot pick them, and the guardrails can't catch it
+    # because the wrong-but-existing target it picks instead passes the "exists" check).
+    MAX_SCHEMA_COLS = 100
     if len(visible_cols) > MAX_SCHEMA_COLS:
         head     = visible_cols[:MAX_SCHEMA_COLS]
         fb       = fallbacks.get(inferred_key, {})
@@ -476,6 +534,19 @@ Your task:
    - DUPLICATE columns — the same field present more than once. A trailing numeric
      suffix like ".1" or ".2" (e.g. "decile_score.1", "priors_count.1") marks a
      pandas-renamed duplicate: drop EVERY duplicate copy.
+   - SENSITIVE-ATTRIBUTE PROXIES — any column that lets the model reconstruct one of
+     the sensitive attributes you chose in step 2, even after that attribute itself is
+     removed. Two common forms:
+       (a) a binary/dummy FLAG derived from a sensitive attribute — e.g. a
+           "has_higher_education" flag when education level is sensitive, or geographic
+           flags (a "coastal", "greater_<capital>", or region/zone indicator) when the
+           region/coast of origin is sensitive.
+       (b) a set of one-hot DUMMY columns that re-encode the same categorical concept
+           another column already captures — e.g. separate per-country indicator columns
+           (one column per country) that duplicate a single grouped destination/region
+           column.
+     Drop EVERY such proxy/dummy. Keeping them defeats debiasing, because the model can
+     read the protected attribute indirectly through the proxy.
    - TARGET LEAKAGE — any column that is derived from, recorded after, or directly
      encodes the outcome, so a model could use it to "cheat" instead of learning.
      This covers precomputed scores, ratings, deciles, risk/assessment values,
@@ -505,10 +576,14 @@ Respond with ONLY this JSON (no prose):
             # Known dataset: the curated config is authoritative and the LLM pick is
             # ignored anyway (pinned below) — skip the slow CPU-bound LLM call entirely.
             print(f"[pin] known dataset '{fallback_key}': curated config (LLM skipped)")
+            agent_log.llm(f"Recognized '{fallback_key}' — using the curated, reproducible config.")
             result = dict(fallbacks[fallback_key])
         else:
+            agent_log.llm(f"Reading the schema ({len(df.columns)} columns) with "
+                          f"{os.environ.get('AADA_LLM_MODEL', OLLAMA_MODEL)} to spot demographic attributes…")
             response = _llm_invoke(prompt)
             result = _extract_json(response)
+            agent_log.llm(f"Proposed sensitive attrs {result.get('sensitive_attrs')}, target '{result.get('target_col')}'.")
 
         normalized_cols = {str(c).strip() for c in df.columns}
 
@@ -671,6 +746,44 @@ Respond with ONLY this JSON (no prose):
         print(f"[modality] LLM said '{llm_modality}' but structure is clearly image -> keeping image")
     state.modality = final_modality
     result["modality"] = final_modality
+
+    # User override from the interface confirm-step (AADA_SENSITIVE_OVERRIDE="a,b,c").
+    # The human confirms/edits the orchestrator's suggestion, so their explicit choice
+    # wins over both the LLM pick and the curated pin. Attributes that already have a
+    # binarization rule keep it; a newly added attribute gets a sensible default rule
+    # (median split for numeric, most-frequent value for categorical).
+    override_raw = os.environ.get("AADA_SENSITIVE_OVERRIDE", "").strip()
+    if override_raw:
+        norm = {str(c).strip(): c for c in df.columns}
+        # Exclude whatever the user forced as target (env override wins over the LLM pick).
+        target_excl = os.environ.get("AADA_TARGET_OVERRIDE") or result.get("target_col")
+        chosen, dropped = [], []
+        for a in [x.strip() for x in override_raw.split(",") if x.strip()]:
+            col = norm.get(a, a)
+            if col not in norm.values() or col == target_excl:
+                dropped.append(a)
+                continue
+            chosen.append(col)
+        if chosen:
+            rules = dict(result.get("binarization_rules", {}) or {})
+            for col in chosen:
+                if col in rules:
+                    continue
+                series = df[col]
+                if pd.api.types.is_numeric_dtype(series):
+                    rules[col] = {"threshold": float(series.median())}
+                else:
+                    mode = series.astype(str).mode()
+                    rules[col] = {"positive_value": (mode.iloc[0] if len(mode) else str(series.iloc[0]))}
+            result["sensitive_attrs"] = chosen
+            result["binarization_rules"] = {c: rules[c] for c in chosen}
+            # Never drop a column the user chose to protect.
+            result["columns_to_drop"] = [c for c in result.get("columns_to_drop", []) if c not in chosen]
+            msg = f"User confirmed sensitive attributes: {chosen}"
+            if dropped:
+                msg += f" (ignored {dropped} — not a usable column)"
+            print(f"[override] {msg}")
+            agent_log.orchestrator(msg + ".")
 
     # Store in global state
     state.sensitive_attrs = result["sensitive_attrs"]
@@ -860,6 +973,8 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
 
     # Extract and binarize sensitive attributes
     sensitive_cols = []
+    sensitive_raw_cols = []   # multi-group bucket codes (0..K-1) for the grouped p_rule
+    group_labels = {}         # {attr: {code: human label}} for the qualitative report
     for attr in state.sensitive_attrs:
         if attr not in df.columns:
             print(f"[warn] sensitive attr '{attr}' not found in columns: {df.columns.tolist()}")
@@ -870,6 +985,26 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
             s = s.str.strip()
         s_bin = _binarize_column(s, rule)
         sensitive_cols.append(s_bin.values)
+        # Multi-group bucket codes for the four-fifths P-rule. HIMS region_origin /
+        # educ_level collapse to 3 custom buckets; everything else uses its binarised
+        # split (so binary attrs like Gender reduce to the classic min(p0/p1,p1/p0)).
+        if attr in HIMS_GROUPED_PRULE_BUCKETS:
+            codes, labels = _grouped_bucket_codes(s, HIMS_GROUPED_PRULE_BUCKETS[attr])
+            group_labels[attr] = labels
+            n_buckets = len(np.unique(codes))
+            print(f"[prule] {attr}: grouped four-fifths P-rule over {n_buckets} buckets "
+                  f"({HIMS_GROUPED_PRULE_BUCKETS[attr]['_map']} | else "
+                  f"'{HIMS_GROUPED_PRULE_BUCKETS[attr]['_default']}')")
+        else:
+            codes = s_bin.values.astype(np.int64)
+            # Binary attr: name code 1 = positive_value, code 0 = the other raw category
+            # (so Gender shows "Female" / "Male" rather than "Gender = Female" / "≠").
+            pv = rule.get("positive_value")
+            uniq = [u for u in pd.unique(s.dropna())]
+            if pv is not None and len(uniq) == 2:
+                other = next((u for u in uniq if str(u) != str(pv)), None)
+                group_labels[attr] = {1: str(pv), 0: str(other) if other is not None else f"not {pv}"}
+        sensitive_raw_cols.append(codes)
         df.drop(columns=[attr], inplace=True)
 
     if not sensitive_cols:
@@ -879,7 +1014,8 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
             f"{df.columns.tolist()}. Check identify_sensitive output / fallback."
         )
 
-    sensitive_matrix = np.stack(sensitive_cols, axis=1)  # (N, n_sensitive)
+    sensitive_matrix = np.stack(sensitive_cols, axis=1)  # (N, n_sensitive) binarised
+    sensitive_raw_matrix = np.stack(sensitive_raw_cols, axis=1)  # (N, n_sensitive) bucket codes
 
     # KDD: industry/occupation/etc. are numeric CODES, not real numbers. FFB casts
     # them to categorical and one-hot-encodes them (-> 509 features), which lets the
@@ -935,6 +1071,7 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
         df = df.iloc[keep].reset_index(drop=True)
         y  = y[keep]
         sensitive_matrix = sensitive_matrix[keep]
+        sensitive_raw_matrix = sensitive_raw_matrix[keep]
         print(f"[info] Subsampled to {MAX_SAMPLES} rows (was {len(keep) + (len(y) - MAX_SAMPLES)})")
 
     # One-hot encode categoricals
@@ -953,6 +1090,7 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
     X_tr, X_te = X[train_idx], X[test_idx]
     y_tr, y_te = y[train_idx], y[test_idx]
     s_tr, s_te = sensitive_matrix[train_idx], sensitive_matrix[test_idx]
+    s_tr_raw, s_te_raw = sensitive_raw_matrix[train_idx], sensitive_raw_matrix[test_idx]
 
     if state.modality == "image":
         # Image path: features are the flattened pixels. Do NOT drop constant
@@ -1002,6 +1140,10 @@ def load_dataset(dataset_path: str, dataset_name: str = "") -> str:
     state.y_test  = torch.tensor(y_te, dtype=torch.float32).to(dev)
     state.sensitive_train = torch.tensor(s_tr, dtype=torch.float32).to(dev)
     state.sensitive_test  = torch.tensor(s_te, dtype=torch.float32).to(dev)
+    # Multi-group bucket codes (int) for the grouped four-fifths P-rule metric
+    state.sensitive_train_raw = torch.tensor(s_tr_raw, dtype=torch.long).to(dev)
+    state.sensitive_test_raw  = torch.tensor(s_te_raw, dtype=torch.long).to(dev)
+    state.group_labels = group_labels   # {attr: {code: human label}} for the report
 
     summary = (
         f"Dataset loaded: {len(X)} samples, {X.shape[1]} features\n"

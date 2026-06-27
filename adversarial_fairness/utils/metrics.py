@@ -26,19 +26,35 @@ from typing import Dict, List, Tuple
 # Fairness metrics
 
 def p_rule(y_pred: np.ndarray, sensitive: np.ndarray, threshold: float = 0.5) -> float:
-    """Disparate impact ratio * 100. Target: >= 80."""
+    """
+    Disparate-impact ratio (four-fifths rule) * 100, generalised to ANY number of
+    groups — not just binary 0/1.
+
+    For each DISTINCT value of `sensitive`, compute the fraction predicted positive
+    (the selection rate), then return 100 * min_rate / max_rate across the groups.
+    This is the general formulation of the 80%-rule and removes the arbitrariness of
+    picking a reference binarisation (e.g. for region_origin's 7 categories collapsed
+    to 3 buckets). Binary sensitive is the special case: it reduces exactly to
+    min(p0/p1, p1/p0) * 100.
+
+    Target: >= 80.
+    """
     y_bin = (y_pred >= threshold).astype(float)
-    mask0 = sensitive == 0
-    mask1 = sensitive == 1
-    if mask0.sum() == 0 or mask1.sum() == 0:
-        return 100.0
-    p0 = y_bin[mask0].mean()
-    p1 = y_bin[mask1].mean()
-    if p0 == 0 and p1 == 0:
-        return 100.0
-    if p0 == 0 or p1 == 0:
-        return 0.0
-    return min(p0 / p1, p1 / p0) * 100.0
+    sensitive = np.asarray(sensitive).ravel()
+
+    rates = []
+    for g in np.unique(sensitive):
+        mask = sensitive == g
+        if mask.sum() == 0:
+            continue
+        rates.append(float(y_bin[mask].mean()))
+
+    if len(rates) < 2:
+        return 100.0                       # only one group present -> trivially equal
+    mx, mn = max(rates), min(rates)
+    if mx == 0.0:
+        return 100.0                       # no group is predicted positive -> equal (all 0)
+    return (mn / mx) * 100.0
 
 
 def _tpr_fpr(y_pred_bin: np.ndarray, y_true: np.ndarray, mask: np.ndarray):
@@ -152,16 +168,24 @@ def compute_all_fairness(
     y_true: np.ndarray,
     sensitive_matrix: np.ndarray,
     attr_names: List[str],
+    sensitive_raw_matrix: np.ndarray = None,
 ) -> Dict[str, Dict]:
     """
     Compute all fairness metrics for every sensitive attribute.
     Returns nested dict: {attr_name: {metric: value}}.
+
+    p_rule is computed on the multi-group BUCKET codes (sensitive_raw_matrix) when
+    provided — so e.g. region_origin gives the four-fifths rule over its 3 custom
+    buckets instead of an arbitrary binarisation. The binary/group-conditioned metrics
+    (eodd/eopp/dp) still use the binarised column. Falls back to the binary p_rule when
+    no raw matrix is supplied.
     """
     results = {}
     for i, name in enumerate(attr_names):
         s = sensitive_matrix[:, i]
+        s_prule = sensitive_raw_matrix[:, i] if sensitive_raw_matrix is not None else s
         results[name] = {
-            "p_rule":                  p_rule(y_pred, s),
+            "p_rule":                  p_rule(y_pred, s_prule),
             "equalized_odds":          equalized_odds(y_pred, y_true, s),
             "equalized_opportunity":   equalized_opportunity(y_pred, y_true, s),
             "demographic_parity_diff": demographic_parity_diff(y_pred, s),
@@ -219,6 +243,7 @@ def evaluate(
     sensitive: torch.Tensor,
     attr_names: List[str],
     device: str,
+    sensitive_raw: torch.Tensor = None,
 ) -> Dict:
     """
     Full evaluation: performance + all fairness metrics per sensitive attribute.
@@ -238,9 +263,11 @@ def evaluate(
     preds_np = preds.numpy().squeeze()
     y_np     = y.cpu().numpy()
     s_np     = sensitive.cpu().numpy()
+    s_raw_np = sensitive_raw.cpu().numpy() if sensitive_raw is not None else None
 
     perf    = compute_performance(preds_np, y_np)
-    fairness = compute_all_fairness(preds_np, y_np, s_np, attr_names)
+    fairness = compute_all_fairness(preds_np, y_np, s_np, attr_names,
+                                    sensitive_raw_matrix=s_raw_np)
 
     # Flat p_rules dict for backward compat with training loop
     p_rules = {name: fairness[name]["p_rule"] for name in attr_names}

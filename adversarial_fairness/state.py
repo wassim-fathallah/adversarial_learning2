@@ -29,8 +29,24 @@ class TrainingState:
     X_test: Optional[torch.Tensor] = None
     y_train: Optional[torch.Tensor] = None
     y_test: Optional[torch.Tensor] = None
-    sensitive_train: Optional[torch.Tensor] = None   # (N, n_sensitive)
+    sensitive_train: Optional[torch.Tensor] = None   # (N, n_sensitive) binarised 0/1
     sensitive_test: Optional[torch.Tensor] = None
+    # Multi-group bucket codes (0..K-1) per sensitive attr, used only by the grouped
+    # P-rule metric (four-fifths rule over real groups). For HIMS, region_origin and
+    # educ_level are collapsed into 3 custom buckets; binary attrs stay 0/1. Training
+    # still uses the binarised sensitive_* tensors above.
+    sensitive_train_raw: Optional[torch.Tensor] = None   # (N, n_sensitive) int codes
+    sensitive_test_raw: Optional[torch.Tensor] = None
+    # Human-readable name for each group code, per sensitive attribute:
+    # {attr: {code: label}} (e.g. region_origin: {0:"Center-West",1:"Greater Tunis",
+    # 2:"Others"}; Gender: {0:"Male",1:"Female"}). Used to label the qualitative-report
+    # plots with real group names instead of "group 0/1/2".
+    group_labels: Dict[str, Any] = field(default_factory=dict)
+    # Predicted P(target=1) on the test set right after pretraining, BEFORE any
+    # adversarial pressure. Snapshotted because the classifier is trained in place,
+    # so the baseline weights are gone by the time the qualitative report runs; the
+    # report uses this to draw the before→after prediction distributions.
+    baseline_probs: Optional[Any] = None
     # Models
     classifier: Optional[Any] = None
     adversary: Optional[Any] = None

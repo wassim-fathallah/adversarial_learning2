@@ -8,6 +8,8 @@ Tab 3 — Comparison — HIMS-Tunisia      : both systems side by side
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,7 +30,7 @@ FFB_RESULTS = os.path.join(ROOT, "fair_fairness_benchmark", "results")
 COLORS = ["#e74c3c", "#2ecc71", "#9b59b6", "#f39c12", "#1abc9c", "#3498db", "#e67e22"]
 
 st.set_page_config(page_title="Fairness Dashboard", page_icon="⚖️", layout="wide")
-st.title("⚖️ Adversarial Fairness — Thesis Dashboard")
+st.title("⚖️ Agentic Adversarial Fairness Algorithm Dashboard")
 
 
 # Data loaders
@@ -54,6 +56,74 @@ def load_ffb_results():
         except Exception:
             pass
     return results
+
+
+# Agents-in-action — live activity feed + model discovery
+
+AF_DIR = os.path.join(ROOT, "adversarial_fairness")
+
+# Icon per agent key (must match adversarial_fairness/agent_log.py).
+AGENT_ICONS = {
+    "orchestrator": "🧭",
+    "classifier":   "🏋️",
+    "adversary":    "🎯",
+    "llm":          "🧠",
+    "report":       "📊",
+}
+_AGENT_RE = re.compile(r"^\[AGENT:([a-z_]+)\]\s?(.*)$")
+_SCHEMA_RE = re.compile(r"^@@SCHEMA@@(.*)$")
+
+
+def _render_agent_feed(placeholder, events):
+    """Render the last ~22 agent events as a compact live feed."""
+    if not events:
+        placeholder.markdown("_waiting for the agents…_")
+        return
+    rows = []
+    for ag, msg in events[-22:]:
+        icon = AGENT_ICONS.get(ag, "•")
+        rows.append(f"{icon} **{ag.capitalize()}** — {msg}")
+    placeholder.markdown("\n\n".join(rows))
+
+
+def stream_with_agents(cmd, env=None, cwd=AF_DIR, spinner="Working…"):
+    """Run `cmd`, streaming a live 'Agents in action' feed + a raw-log expander.
+
+    Returns (returncode, schema_dict_or_None, all_log_lines). `[AGENT:*]` lines
+    drive the feed; an `@@SCHEMA@@{...}` line (from suggest_schema.py) is parsed
+    out and returned.
+    """
+    run_env = {**os.environ, **(env or {})}
+    st.markdown("##### 🤖 Agents in action")
+    feed_box = st.empty()
+    events = []
+    schema = None
+    logs = []
+    with st.expander("Raw log", expanded=False):
+        log_box = st.empty()
+    with st.spinner(spinner):
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", cwd=cwd, env=run_env,
+        )
+        for line in proc.stdout:
+            line = line.rstrip()
+            m = _AGENT_RE.match(line)
+            if m:
+                events.append((m.group(1), m.group(2)))
+                _render_agent_feed(feed_box, events)
+                continue
+            ms = _SCHEMA_RE.match(line)
+            if ms:
+                try:
+                    schema = json.loads(ms.group(1))
+                except Exception:
+                    schema = None
+                continue
+            logs.append(line)
+            log_box.text("\n".join(logs[-40:]))
+        proc.wait()
+    return proc.returncode, schema, logs
 
 
 # Helpers — My System
@@ -183,6 +253,141 @@ def show_my_run_summary(run):
                                          delta="✓ ≥80%" if val >= 80 else "✗ <80%",
                                          delta_color="normal" if val >= 80 else "inverse")
     st.caption(f"{ts} | Iterations: {iters} | {'✅ SUCCESS' if success else '🔄 Not yet'}")
+
+    # Equalized odds before (post-pretrain baseline) vs after (final iteration), per
+    # attribute. Lower = fairer; a negative Δ means the gap shrank with debiasing.
+    fb = run.get("fairness_baseline", {})
+    ff = run.get("fairness_final", {})
+    if ff:
+        st.markdown("**Equalized odds** — % gap, lower is fairer")
+        eo_rows = []
+        for attr in p_rules.keys():
+            before = fb.get(attr, {}).get("eodd")
+            after  = ff.get(attr, {}).get("eodd")
+            eo_rows.append({
+                "Attribute":         attr,
+                "Before (baseline)": f"{before:.2f}%" if before is not None else "—",
+                "After (final)":     f"{after:.2f}%"  if after  is not None else "—",
+                "Δ":                 f"{after - before:+.2f}" if (before is not None and after is not None) else "—",
+            })
+        st.dataframe(pd.DataFrame(eo_rows), hide_index=True, use_container_width=True)
+
+
+def _fmt_ba(before, after, pct=True):
+    """'before → after' with a sign-aware delta, robust to missing values."""
+    def f(v):
+        if v is None:
+            return "—"
+        return f"{v:.1f}%" if pct else f"{v:.2f}"
+    s = f"{f(before)} → {f(after)}"
+    if before is not None and after is not None:
+        s += f"  (Δ {after - before:+.1f})" if pct else f"  (Δ {after - before:+.2f})"
+    return s
+
+
+def render_run_report(run):
+    """Qualitative bias report (distributions, before→after, base-rate, fairness,
+    verdicts + written analysis) at the bottom of a run, if one was saved."""
+    report = run.get("report") or {}
+    plot_rel  = report.get("plot")
+    plots     = report.get("plots")
+    narrative = report.get("narrative")
+    summary   = report.get("summary") or {}
+    fairness  = report.get("fairness") or {}
+    stats     = report.get("stats") or {}
+    if not plot_rel and not plots and not narrative:
+        return
+
+    st.divider()
+    st.markdown("#### 🔍 Qualitative bias report")
+
+    # Download the full PDF report (charts + LLM qualitative analysis), if generated.
+    pdf_rel = report.get("pdf")
+    if pdf_rel:
+        pdf_abs = os.path.join(AF_DIR, pdf_rel)
+        if os.path.exists(pdf_abs):
+            with open(pdf_abs, "rb") as _f:
+                # Unique key per run — render_run_report runs in a loop, and several runs
+                # can each expose a PDF button; without a key Streamlit auto-IDs collide
+                # (StreamlitDuplicateElementId) and the later run's tab fails to render.
+                _dlkey = ("dlpdf_"
+                          f"{run.get('timestamp','')}_{run.get('_run_index','')}_"
+                          f"{os.path.basename(pdf_abs)}")
+                st.download_button("⬇️ Download PDF report", _f.read(),
+                                   file_name=os.path.basename(pdf_abs),
+                                   mime="application/pdf", use_container_width=True,
+                                   key=_dlkey)
+            if report.get("llm_used"):
+                st.caption(f"Qualitative analysis written by LLM: {report.get('llm_model', '')}")
+
+    # Accuracy cost + convergence summary.
+    ab, aa = summary.get("acc_before"), summary.get("acc_after")
+    if ab is not None or aa is not None:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Accuracy (before → after)",
+                  f"{aa:.1f}%" if aa is not None else "—",
+                  delta=f"{aa - ab:+.1f} pts" if (ab is not None and aa is not None) else None,
+                  delta_color="off")
+        c2.metric("Iterations", summary.get("iterations", "—"))
+        lam = summary.get("lambda_final") or []
+        c3.metric("Final λ", ", ".join(f"{l:g}" for l in lam) if lam else "—")
+
+    # Per-attribute pass / short verdict.
+    for attr, v in (summary.get("verdicts") or {}).items():
+        (st.success if str(v).startswith("PASS") else st.warning)(f"**{attr}** — {v}")
+
+    # The figures — one PNG per view (distributions / before→after / equalized odds).
+    figs = plots if plots else ([{"title": None, "plot": plot_rel}] if plot_rel else [])
+    for fg in figs:
+        rel, title = fg.get("plot"), fg.get("title")
+        if title:
+            st.markdown(f"**{title}**")
+        ap = os.path.join(AF_DIR, rel) if rel else None
+        if ap and os.path.exists(ap):
+            st.image(ap, use_container_width=True)
+        elif rel:
+            st.caption(f"(figure not found at {rel})")
+
+    # Fairness metrics before → after.
+    if fairness:
+        rows = []
+        for attr, fv in fairness.items():
+            rows.append({
+                "Attribute": attr,
+                "P-rule":    _fmt_ba(fv.get("prule_before"), fv.get("prule_after")),
+                "DP gap":    _fmt_ba(fv.get("dp_before"),   fv.get("dp_after")),
+                "EqOdds":    _fmt_ba(fv.get("eodd_before"), fv.get("eodd_after")),
+                "EqOpp":     _fmt_ba(fv.get("eopp_before"), fv.get("eopp_after")),
+            })
+        st.markdown("**Fairness metrics — before → after** (P-rule higher is fairer; gaps lower is fairer)")
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+    # Per-group breakdown: size, actual vs predicted positive rate.
+    if stats:
+        grows = []
+        for attr, s in stats.items():
+            labels = s.get("labels", {})
+            for code, g in (s.get("groups") or {}).items():
+                grows.append({
+                    "Attribute":      attr,
+                    "Group":          labels.get(code, f"group {code}"),
+                    "N":              g.get("n"),
+                    "Actual +%":      f"{g['true_rate']:.1f}%" if g.get("true_rate") is not None else "—",
+                    "Predicted +%":   f"{g.get('sel_rate', float('nan')):.1f}%",
+                    "Predicted +% (before)": f"{g['sel_rate_before']:.1f}%" if g.get("sel_rate_before") is not None else "—",
+                })
+        if grows:
+            st.markdown("**Group breakdown** — size, actual outcome rate vs model's predicted rate")
+            st.dataframe(pd.DataFrame(grows), hide_index=True, use_container_width=True)
+
+    if narrative:
+        st.markdown("**Analysis**")
+        st.markdown(
+            "<div style='background:#fff3f3;border-left:4px solid #d62728;"
+            "padding:0.8rem 1rem;border-radius:4px'>" +
+            narrative.replace("\n", "<br>") + "</div>",
+            unsafe_allow_html=True,
+        )
 
 
 # Helpers — FFB
@@ -317,7 +522,7 @@ tab_my, tab_ffb = st.tabs([
 
 with tab_my:
 
-    # Upload & Train
+    # Upload → orchestrator suggests → you confirm → train (agents shown live)
     with st.expander("Apply AAD on a new dataset", expanded=False):
         uploaded_files = st.file_uploader(
             "Upload dataset file(s) — .csv, .data, .tsv, .txt or any tabular format. "
@@ -325,6 +530,21 @@ with tab_my:
             type=None,
             accept_multiple_files=True,
         )
+
+        classifier_choices = {
+            "Auto — image→CNN, tabular→MLP (2×256)": "auto",
+            "MLP — 2 layers × 256 (default)":         "mlp:2x256",
+            "MLP — 3 layers × 256":                   "mlp:3x256",
+            "MLP — 2 layers × 128":                   "mlp:2x128",
+            "MLP — 3 layers × 512":                   "mlp:3x512",
+            "CNN — ResNet-18 (image data)":           "cnn",
+        }
+        m1, _ = st.columns([2, 2])
+        clf_label = m1.selectbox(
+            "🧠 Classifier model", list(classifier_choices),
+            help="The predictor architecture. 'Auto' uses a CNN for images and a 2×256 MLP "
+                 "for tabular data; or force an MLP depth/width, or a CNN.")
+        classifier_spec = classifier_choices[clf_label]
 
         c1, c2, c3, c4 = st.columns(4)
         iterations = c1.slider("Iterations",  5,  50, 25)
@@ -342,76 +562,94 @@ with tab_my:
                 [f.name for f in uploaded_files],
             )
 
-        if uploaded_files and st.button("▶ Start Training", type="primary"):
-            # Save all files to a single temp directory
-            tmp_dir  = tempfile.mkdtemp()
+        # Signature of the current upload set — a changed upload invalidates a stale suggestion.
+        upload_sig = "|".join(sorted(f.name for f in uploaded_files)) if uploaded_files else ""
+
+        # --- Step 1 : the orchestrator perceives the schema and SUGGESTS ----------
+        if uploaded_files and st.button(
+                "🔍 Step 1 — Analyze (let the orchestrator suggest)", type="secondary"):
+            tmp_dir   = tempfile.mkdtemp()
             tmp_paths = {}
             for uf in uploaded_files:
                 dest = os.path.join(tmp_dir, uf.name)
                 with open(dest, "wb") as f:
                     f.write(uf.read())
                 tmp_paths[uf.name] = dest
-
             entry_path = tmp_paths[main_file]
             ds_name    = os.path.splitext(main_file)[0]
 
-            python = sys.executable
+            cmd = [sys.executable, os.path.join(AF_DIR, "suggest_schema.py"),
+                   "--dataset", entry_path, "--name", ds_name]
+            rc, schema, _ = stream_with_agents(cmd, spinner="Reading the schema…")
+            schema = schema or {}
+            st.session_state["analysis"] = {
+                "sig":        upload_sig,
+                "tmp_dir":    tmp_dir,
+                "entry":      entry_path,
+                "name":       ds_name,
+                "columns":    schema.get("columns") or [],
+                "suggested_sensitive": schema.get("sensitive_attrs", []),
+                "suggested_target":    schema.get("target_col"),
+                "modality":   schema.get("modality", "tabular"),
+                "error":      schema.get("error"),
+            }
+            st.rerun()
 
-            cmd = [
-                python,
-                os.path.join(ROOT, "adversarial_fairness", "main.py"),
-                "--dataset",    entry_path,
-                "--name",       ds_name,
-                "--iterations", str(iterations),
-                "--epochs",     str(epochs),
-                "--threshold",  str(threshold),
-                "--pretrain",   str(pretrain),
-            ]
+        # --- Step 2 : you confirm / edit, then train ------------------------------
+        analysis = st.session_state.get("analysis")
+        if analysis and analysis.get("sig") == upload_sig and uploaded_files:
+            cols = analysis["columns"]
+            mod  = analysis.get("modality", "tabular")
+            banner = (st.success if mod != "image" else st.info)
+            banner(
+                f"Orchestrator analyzed **{analysis['name']}** → detected a "
+                f"**{'TABULAR (MLP)' if mod != 'image' else 'IMAGE (CNN)'}** dataset. "
+                f"Confirm or change the target and the sensitive attributes below.")
+            if analysis.get("error"):
+                st.warning(f"Auto-suggestion was partial ({analysis['error']}); pick the columns manually.")
+            if not cols:
+                st.warning("Couldn't read the columns automatically — re-run Step 1 or check the file.")
 
-            st.info(f"Training **{ds_name}** — {len(uploaded_files)} file(s) uploaded")
-            modality_box = st.empty()   # prominent CNN/MLP decision banner
-            log_box = st.empty()
-            logs    = []
-            modality_shown = False
+            tgt_default = analysis.get("suggested_target")
+            tcol = st.selectbox(
+                "🎯 Target column (what to predict)",
+                cols or ([tgt_default] if tgt_default else [""]),
+                index=(cols.index(tgt_default) if (cols and tgt_default in cols) else 0))
+            sens_opts    = [c for c in cols if c != tcol]
+            sens_default = [s for s in analysis.get("suggested_sensitive", []) if s in sens_opts]
+            sattrs = st.multiselect(
+                "🛡️ Sensitive attributes to protect", sens_opts, default=sens_default,
+                help="The orchestrator's suggestion is pre-filled — add or remove as you like.")
 
-            with st.spinner("Training in progress…"):
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    cwd=os.path.join(ROOT, "adversarial_fairness"),
-                )
-                for line in proc.stdout:
-                    logs.append(line.rstrip())
-                    # Surface the modality / classifier choice as soon as it appears in the log
-                    if not modality_shown:
-                        low = line.lower()
-                        if ("image -> cnn" in low) or ("[modality] detected: image" in low):
-                            modality_box.success(
-                                "🖼️ Detected an **IMAGE** dataset → using a **CNN** classifier")
-                            modality_shown = True
-                        elif ("tabular -> mlp" in low) or ("[modality] detected: tabular" in low):
-                            modality_box.info(
-                                "📋 Detected a **TABULAR** dataset → using an **MLP** classifier")
-                            modality_shown = True
-                    # st.text (not st.code) — avoids the syntax-highlighter JS module
-                    # that fails to load when streaming logs are re-rendered rapidly.
-                    log_box.text("\n".join(logs[-30:]))
-                proc.wait()
-
-            # Clean up temp dir
-            import shutil
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-
-            if proc.returncode == 0:
-                st.success("✅ Training complete! Scroll down to see results.")
-                st.cache_data.clear()
-                st.rerun()
-            else:
-                st.error("❌ Training failed. Check the log above.")
+            if st.button("▶ Step 2 — Start Training", type="primary"):
+                if not sattrs:
+                    st.error("Pick at least one sensitive attribute before training.")
+                else:
+                    cmd = [
+                        sys.executable, os.path.join(AF_DIR, "main.py"),
+                        "--dataset",    analysis["entry"],
+                        "--name",       analysis["name"],
+                        "--target",     tcol,
+                        "--sensitive",  ",".join(sattrs),
+                        "--classifier", classifier_spec,
+                        "--iterations", str(iterations),
+                        "--epochs",     str(epochs),
+                        "--threshold",  str(threshold),
+                        "--pretrain",   str(pretrain),
+                    ]
+                    st.info(
+                        f"Training **{analysis['name']}** — predict '{tcol}', "
+                        f"protect {sattrs}, classifier `{clf_label}`")
+                    rc, _, _ = stream_with_agents(cmd, spinner="Training in progress…")
+                    shutil.rmtree(analysis["tmp_dir"], ignore_errors=True)
+                    st.session_state.pop("analysis", None)
+                    if rc == 0:
+                        st.success("✅ Training complete! Scroll down for results and the "
+                                   "qualitative bias report.")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("❌ Training failed. Open the raw log above to see why.")
 
     st.divider()
 
@@ -439,6 +677,7 @@ with tab_my:
                         show_my_run_summary(run)
                         st.plotly_chart(plot_my_run(run), use_container_width=True,
                                         key=f"my_{ds_name}_{i}")
+                        render_run_report(run)
 
 
 # TAB 2 : FFB Benchmark

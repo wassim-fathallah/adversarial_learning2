@@ -19,7 +19,7 @@ from state import state
 from memory.long_term import LongTermMemory
 
 
-LAMBDA_LEARNING_RATE = 2.5
+LAMBDA_LEARNING_RATE = float(os.environ.get("AADA_LAMBDA_LR", "2.5"))
 # Default 0.7 (chosen setting — converges faster, ties/beats 0.9 on accuracy,
 # fairer on hard attributes). Override per-process with AADA_MOMENTUM_BETA
 # (e.g. =0.9) WITHOUT editing this constant.
@@ -115,7 +115,7 @@ def decide_initial_lambda(n_sensitive: int = 2) -> str:
 
     # Known benchmark datasets always start from zero — overrides any cached value.
     # Fingerprint warm-start is reserved for unknown/uploaded datasets.
-    KNOWN_DATASETS = {"adult", "compas", "german", "bank", "kdd", "acs", "utkface", "hims-tunisia"}
+    KNOWN_DATASETS = {"adult", "compas", "german", "bank", "kdd", "acs", "utkface", "hims-tunisia", "hims-10k", "hims-real10k"}
     is_known = (state.dataset_name or "").lower() in KNOWN_DATASETS
 
     if is_known:
@@ -133,7 +133,11 @@ def decide_initial_lambda(n_sensitive: int = 2) -> str:
         try:
             lt = LongTermMemory()
             fp = LongTermMemory.compute_fingerprint(state)
-            warm, info = lt.find_warm_start(fp, n)
+            # AADA_WARMSTART_SCALE (<1) softens the warm-start so the full reference
+            # lambda is not slammed onto the freshly-pretrained classifier in one step
+            # (which can shock accuracy). The loop then climbs the rest in a few iters.
+            _ws_scale = float(os.environ.get("AADA_WARMSTART_SCALE", "1.0"))
+            warm, info = lt.find_warm_start(fp, n, safety_factor=_ws_scale)
             if warm is not None:
                 state.lambda_vector = warm
                 print(f"[λ-init] fingerprint warm start: {info}")

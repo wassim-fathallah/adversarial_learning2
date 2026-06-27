@@ -20,6 +20,11 @@ from datetime import datetime
 
 MEMORY_FILE = "long_term_memory.json"
 
+# Max runs kept per dataset key. Older runs beyond this are trimmed on save. Raised
+# from 10 so seed sweeps / repeated runs accumulate instead of silently dropping the
+# oldest; override with AADA_MAX_RUNS_PER_KEY (set very high to effectively keep all).
+MAX_RUNS_PER_KEY = int(os.environ.get("AADA_MAX_RUNS_PER_KEY", "1000"))
+
 
 class LongTermMemory:
     def __init__(self, path: str = MEMORY_FILE):
@@ -28,16 +33,20 @@ class LongTermMemory:
         self._load()
 
     def _load(self):
+        # utf-8-sig so a UTF-8 BOM (e.g. a file last written by PowerShell) is
+        # stripped instead of crashing json.load. A read failure here must NOT
+        # silently reset self.data to {} and then overwrite the file on the next
+        # _save() — that wipes every other dataset's runs. If the file exists but
+        # cannot be parsed, raise so the run aborts with the data still on disk.
         if os.path.exists(self.path):
-            try:
-                with open(self.path, "r") as f:
-                    self.data = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                self.data = {}
+            with open(self.path, "r", encoding="utf-8-sig") as f:
+                self.data = json.load(f)
 
     def _save(self):
-        with open(self.path, "w") as f:
-            json.dump(self.data, f, indent=2)
+        # Always UTF-8 without a BOM so the file is parsed identically on every
+        # platform (Windows default cp1252 would otherwise corrupt non-ASCII).
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(self.data, f, indent=2, ensure_ascii=False)
 
     def _key(self, dataset_name: str, target_col: str, sensitive_attrs: List[str]) -> str:
         return f"{dataset_name}|{target_col}|{','.join(sorted(sensitive_attrs))}"
@@ -131,9 +140,11 @@ class LongTermMemory:
         lambda_trajectory: List[List[float]] = None,
         iteration_metrics: List[Dict[str, Any]] = None,
         fairness_final: Dict[str, Dict[str, float]] = None,
+        fairness_baseline: Dict[str, Dict[str, float]] = None,
         fingerprint: dict = None,
         lambda_at_best: List[float] = None,
         seed: int = None,
+        report: Dict[str, Any] = None,
     ):
         key = self._key(dataset_name, target_col, sensitive_attrs)
         entry = {
@@ -149,7 +160,9 @@ class LongTermMemory:
             "lambda_trajectory":  lambda_trajectory or [],
             "iteration_metrics":  iteration_metrics or [],
             "fairness_final":     fairness_final or {},
+            "fairness_baseline":  fairness_baseline or {},
             "fingerprint":        fingerprint or {},
+            "report":             report or {},
         }
         # Optional isolated output: when AADA_SAVE_MEMORY_FILE is set, the run is
         # written ONLY to that file (loaded/accumulated independently), leaving the
@@ -160,21 +173,18 @@ class LongTermMemory:
         if save_path and save_path != self.path:
             target: Dict[str, List[Dict[str, Any]]] = {}
             if os.path.exists(save_path):
-                try:
-                    with open(save_path, "r") as f:
-                        target = json.load(f)
-                except (json.JSONDecodeError, IOError):
-                    target = {}
+                with open(save_path, "r", encoding="utf-8-sig") as f:
+                    target = json.load(f)
             target.setdefault(key, []).append(entry)
-            target[key] = target[key][-10:]
-            with open(save_path, "w") as f:
-                json.dump(target, f, indent=2)
+            target[key] = target[key][-MAX_RUNS_PER_KEY:]
+            with open(save_path, "w", encoding="utf-8") as f:
+                json.dump(target, f, indent=2, ensure_ascii=False)
             return
 
         if key not in self.data:
             self.data[key] = []
         self.data[key].append(entry)
-        self.data[key] = self.data[key][-10:]
+        self.data[key] = self.data[key][-MAX_RUNS_PER_KEY:]
         self._save()
 
     def find_warm_start(

@@ -11,14 +11,19 @@ import torch.nn as nn
 
 
 class Classifier(nn.Module):
-    def __init__(self, n_features: int, n_hidden: int = 256):
+    def __init__(self, n_features: int, n_hidden: int = 256, n_layers: int = 2):
         super().__init__()
-        # 2 hidden layers of n_hidden neurons (FFB-matched tabular MLP, Appendix C).
-        self.network = nn.Sequential(
-            nn.Linear(n_features, n_hidden), nn.ReLU(), nn.Dropout(0.2),
-            nn.Linear(n_hidden, n_hidden),  nn.ReLU(), nn.Dropout(0.2),
-            nn.Linear(n_hidden, 1),
-        )
+        # `n_layers` hidden layers of `n_hidden` neurons each. The default (2 × 256)
+        # is the FFB-matched tabular MLP (Appendix C) and reproduces every prior run
+        # byte-for-byte; the interface's classifier picker can request other depths
+        # (e.g. 3 × 256, 2 × 128) without touching the default path.
+        n_layers = max(1, int(n_layers))
+        layers, in_dim = [], n_features
+        for _ in range(n_layers):
+            layers += [nn.Linear(in_dim, n_hidden), nn.ReLU(), nn.Dropout(0.2)]
+            in_dim = n_hidden
+        layers += [nn.Linear(in_dim, 1)]
+        self.network = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Returns scalar prediction probability Ŷ ∈ (0,1), shape (N,1)."""

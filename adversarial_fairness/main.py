@@ -123,6 +123,15 @@ def main():
                         help="Override dataset name used for memory key")
     parser.add_argument("--target",     type=str, default=None,
                         help="Force the target column (overrides LLM pick).")
+    parser.add_argument("--sensitive",  type=str, default=None,
+                        help="Comma-separated sensitive attributes to use (overrides the "
+                             "LLM/curated pick). Confirmed by the user in the interface.")
+    parser.add_argument("--model",      type=str, default=None,
+                        help="Ollama model for the LLM steps + report narrative "
+                             "(e.g. llama3.1). Defaults to the AADA_LLM_MODEL env or llama3.1.")
+    parser.add_argument("--classifier", type=str, default=None,
+                        help="Classifier architecture: 'auto' (image->CNN, tabular->MLP 2x256), "
+                             "'mlp:LxW' (e.g. mlp:3x256, mlp:2x128), or 'cnn' (ResNet-18).")
     parser.add_argument("--iterations", type=int, default=25,
                         help="Max adversarial iterations (default: 25)")
     parser.add_argument("--epochs",     type=int, default=50,
@@ -138,6 +147,18 @@ def main():
     parser.add_argument("--seed",       type=int, default=42,
                         help="Random seed for reproducibility (default: 42)")
     args = parser.parse_args()
+
+    # Propagate the interface's model / sensitive-attribute choices via env so the
+    # already-imported tool modules (data_tools builds the LLM lazily, reading these)
+    # pick them up. Set before any LLM work starts.
+    if args.model:
+        os.environ["AADA_LLM_MODEL"] = args.model
+    if args.sensitive:
+        os.environ["AADA_SENSITIVE_OVERRIDE"] = args.sensitive
+    if args.target:
+        os.environ["AADA_TARGET_OVERRIDE"] = args.target
+    if args.classifier:
+        os.environ["AADA_CLASSIFIER"] = args.classifier
 
     _check_ollama()
 

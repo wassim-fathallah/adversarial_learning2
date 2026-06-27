@@ -20,6 +20,7 @@ existing entry points (main.py, streamlit) are unchanged.
 import json
 import torch
 
+import agent_log
 from state import state, reset_state
 from tools.data_tools import identify_sensitive, load_dataset
 from tools.lambda_tools import decide_initial_lambda
@@ -87,6 +88,9 @@ class OrchestratorAgent:
         print(f"\n{_SEP}")
         print(f"  Step 1/5 -- Identify sensitive attributes")
         print(_SEP)
+        agent_log.orchestrator(
+            f"Perceiving the schema of '{self.name}' — asking the LLM which columns "
+            f"are sensitive attributes and what to predict.")
         result1 = self.tools["identify_sensitive"].invoke(
             {"dataset_path": self.dataset_path, "dataset_name": self.name})
         schema = json.loads(result1)
@@ -105,6 +109,9 @@ class OrchestratorAgent:
         print(f"  Sensitive attrs : {schema['sensitive_attrs']}")
         print(f"  Target column   : {schema['target_col']}")
         print(f"  Drop columns    : {schema.get('columns_to_drop', [])}")
+        agent_log.orchestrator(
+            f"Decision — protect {schema['sensitive_attrs']} while predicting "
+            f"'{schema['target_col']}'.")
         return schema
 
     def load_dataset(self):
@@ -112,8 +119,14 @@ class OrchestratorAgent:
         print(f"\n{_SEP}")
         print(f"  Step 2/5 -- Load & preprocess dataset")
         print(_SEP)
+        agent_log.orchestrator("Loading and preprocessing the dataset (encode, scale, split).")
         self.tools["load_dataset"].invoke(
             {"dataset_path": self.dataset_path, "dataset_name": self.name})
+        modality = getattr(state, "modality", "tabular") or "tabular"
+        if str(modality).lower() == "image":
+            agent_log.orchestrator("Modality: IMAGE → the classifier will be a CNN.")
+        else:
+            agent_log.orchestrator("Modality: TABULAR → the classifier will be an MLP.")
 
     def decide_initial_lambda(self):
         """Step 3 — λ⁽⁰⁾: zero for known datasets, fingerprint warm-start otherwise."""
@@ -123,12 +136,17 @@ class OrchestratorAgent:
         n_sensitive = len(state.sensitive_attrs)
         self.tools["decide_initial_lambda"].invoke({"n_sensitive": n_sensitive})
         print(f"  Initial lambda : {state.lambda_vector}")
+        agent_log.orchestrator(
+            f"Initial fairness penalty λ⁽⁰⁾ = {[round(l, 3) for l in state.lambda_vector]}.")
 
     def pretrain(self):
         """Step 4 — independent pre-training of classifier + adversary agents."""
         print(f"\n{_SEP}")
         print(f"  Step 4/5 -- Pretrain classifier + adversary")
         print(_SEP)
+        agent_log.orchestrator(
+            f"Pretraining the classifier and adversary independently "
+            f"({self.initial_epochs} epochs) before the minimax game begins.")
         self.tools["pretrain"].invoke({"n_epochs": self.initial_epochs})
 
     def adversarial_loop(self) -> dict:
@@ -136,6 +154,9 @@ class OrchestratorAgent:
         print(f"\n{_SEP}")
         print(f"  Step 5/5 -- Adversarial training loop")
         print(_SEP)
+        agent_log.orchestrator(
+            f"Starting the adversarial loop — up to {self.max_iterations} iterations, "
+            f"target P-rule ≥ {self.p_rule_threshold:.0f}% on every attribute.")
         result5 = self.tools["run_full_training"].invoke({
             "max_iterations":   self.max_iterations,
             "epochs_per_step":  self.epochs_per_step,

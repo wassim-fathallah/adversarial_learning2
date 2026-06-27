@@ -12,12 +12,14 @@ Training follows Zhang et al. exactly:
 """
 
 import json
+import os
 import torch
 import torch.nn as nn
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
 from langchain.tools import tool
 
+import agent_log
 from state import state
 from models.agents import ClassifierAgent, ImageClassifierAgent, AdversaryAgent
 from memory.short_term import ShortTermMemory
@@ -40,6 +42,7 @@ DATASET_BATCH_SIZES = {
     "acs":     4096,
     "utkface": 128,
     "hims-tunisia": 32,
+    "earnings_synth": 1024,   # Adult-sized synthetic (30k rows) — fingerprint demo
 }
 
 def _make_loader(X, y, sensitive, batch_size=32, seed=42):
@@ -153,6 +156,51 @@ def _train_one_epoch_adversarial(
     return total_task / n, total_adv / n, total_clf / n
 
 
+def _fairness_diffs(fairness: dict) -> dict:
+    """Per-attribute fairness diffs scaled to % (FFB-style), from an evaluate() fairness
+    block. Used for BOTH the pre-training baseline and the final iteration so every run
+    records equalized odds before and after debiasing.
+      dp   = demographic parity difference
+      eodd = equalized odds diff = mean(TPR gap, FPR gap)
+      eopp = equal opportunity diff = TPR gap
+    """
+    out = {}
+    for attr, fm in (fairness or {}).items():
+        eo = fm.get("equalized_odds", {})
+        out[attr] = {
+            "dp":   round(fm.get("demographic_parity_diff", 0.0) * 100.0, 2),
+            "eodd": round(0.5 * (eo.get("tpr_gap", 0.0) + eo.get("fpr_gap", 0.0)) * 100.0, 2),
+            "eopp": round(fm.get("equalized_opportunity", {}).get("tpr_gap", 0.0) * 100.0, 2),
+        }
+    return out
+
+
+def _parse_classifier_spec(spec: str):
+    """Parse the classifier-architecture choice (AADA_CLASSIFIER / interface picker).
+
+    Returns (kind, n_layers, n_hidden) where kind ∈ {"auto", "mlp", "cnn"}:
+      auto          -> image→CNN, tabular→MLP (2×256); the historical default.
+      mlp[:LxW]     -> force an MLP with L hidden layers of width W (e.g. mlp:3x256).
+      cnn           -> force the ResNet-18 image predictor (needs reshapeable input).
+    Unparseable values fall back to auto so a bad string can never break a run.
+    """
+    spec = (spec or "auto").strip().lower()
+    if spec in ("", "auto"):
+        return ("auto", None, None)
+    if spec == "cnn":
+        return ("cnn", None, None)
+    if spec.startswith("mlp"):
+        rest = spec[3:].lstrip(":").strip()
+        if not rest:
+            return ("mlp", 2, 256)
+        try:
+            l, w = rest.split("x")
+            return ("mlp", int(l), int(w))
+        except Exception:
+            return ("mlp", 2, 256)
+    return ("auto", None, None)
+
+
 #
 # Tool 1 — pretrain
 #
@@ -171,23 +219,39 @@ def pretrain(n_epochs: int = 10) -> str:
     n_features  = state.X_train.shape[1]
     n_sensitive = state.sensitive_train.shape[1]
 
-    # Tabular MLP: 2 hidden layers of 256 neurons (FFB-matched, Appendix C).
-    # Image CNN: scale the dense-head width with the pixel count.
+    # Default hidden width. Tabular MLP: 256 (FFB-matched, Appendix C).
+    # Image CNN dense head: scale the width with the pixel count.
     if state.modality == "image":
         n_hidden = min(max(64, n_features // 8), 512) if n_features > 500 else 32
     else:
         n_hidden = 256
 
-    # Image datasets use the CNN predictor; tabular uses the MLP. The adversary,
-    # the lambda/momentum logic and the training loop are identical either way —
-    # only the predictor's feature extractor differs.
-    if state.modality == "image":
+    # Architecture chosen in the interface (or AADA_CLASSIFIER). "auto" keeps the
+    # historical behaviour exactly: image datasets use the ResNet-18 CNN predictor,
+    # tabular datasets use the 2×256 MLP. The adversary, the λ/momentum logic and the
+    # training loop are identical for every choice — only the predictor changes.
+    kind, n_layers, n_hidden_override = _parse_classifier_spec(os.environ.get("AADA_CLASSIFIER"))
+    use_image = (kind == "cnn") or (kind == "auto" and state.modality == "image")
+    if use_image and not getattr(state, "image_shape", None):
+        print("[model] CNN requested but this dataset has no image shape -> using an MLP instead")
+        agent_log.orchestrator("CNN was requested but the data is tabular — falling back to an MLP.")
+        use_image = False
+    if n_hidden_override:
+        n_hidden = n_hidden_override
+
+    if use_image:
         clf = ImageClassifierAgent(state.image_shape, n_hidden=n_hidden).to(device)
         print(f"[model] IMAGE -> ResNet18 predictor | image_shape={state.image_shape}")
+        agent_log.classifier(f"I am a CNN (ResNet-18) predictor — image input {state.image_shape}.")
     else:
-        clf = ClassifierAgent(n_features, n_hidden=n_hidden).to(device)
-        print(f"[model] TABULAR -> MLP predictor | n_features={n_features}  n_hidden={n_hidden}")
+        n_layers = n_layers or 2
+        clf = ClassifierAgent(n_features, n_hidden=n_hidden, n_layers=n_layers).to(device)
+        print(f"[model] TABULAR -> MLP predictor | n_features={n_features} "
+              f"n_layers={n_layers} n_hidden={n_hidden}")
+        agent_log.classifier(
+            f"I am an MLP predictor — {n_layers} hidden layer(s) × {n_hidden}, {n_features} features.")
     adv = AdversaryAgent(n_sensitive=n_sensitive, n_hidden=n_hidden).to(device)
+    agent_log.adversary(f"I will try to recover {n_sensitive} sensitive attribute(s) from the prediction.")
 
     clf_opt = torch.optim.Adam(clf.parameters(), lr=1e-3)
     adv_opt = torch.optim.Adam(adv.parameters(), lr=1e-3)
@@ -202,18 +266,35 @@ def pretrain(n_epochs: int = 10) -> str:
                           batch_size=_batch_size_for(state.dataset_name), seed=seed)
 
     print(f"\n[pretrain] Pre-training for {n_epochs} epochs...")
+    last_clf_loss = last_adv_loss = 0.0
     for epoch in range(n_epochs):
         clf_loss, adv_loss = _train_one_epoch_pretrain(
             clf, adv, clf_opt, adv_opt, loader, device
         )
+        last_clf_loss, last_adv_loss = clf_loss, adv_loss
         if (epoch + 1) % 5 == 0 or epoch == n_epochs - 1:
             print(f"  epoch {epoch+1:3d}/{n_epochs} | clf_loss={clf_loss:.4f} | adv_loss={adv_loss:.4f}")
+    agent_log.classifier(f"Pretraining done — task loss {last_clf_loss:.3f}.")
+    agent_log.adversary(f"Pretraining done — recovery loss {last_adv_loss:.3f}.")
 
     metrics = evaluate(
         clf, state.X_test, state.y_test, state.sensitive_test,
-        state.sensitive_attrs, device
+        state.sensitive_attrs, device, sensitive_raw=state.sensitive_test_raw
     )
+    # Snapshot the baseline test predictions (before adversarial debiasing) so the
+    # qualitative report can show the before→after distribution shift. The classifier
+    # is trained in place, so these weights won't exist by report time.
+    try:
+        clf.eval()
+        with torch.no_grad():
+            state.baseline_probs = clf(state.X_test.to(device)).detach().cpu().numpy().reshape(-1)
+    except Exception as e:
+        print(f"[pretrain] baseline-prediction snapshot skipped ({e})")
+        state.baseline_probs = None
     print(f"[pretrain] Initial -> acc={metrics['accuracy']:.4f} | p_rules={metrics['p_rules']}")
+    _pr = " | ".join(f"{a}={v:.1f}%" for a, v in metrics["p_rules"].items())
+    agent_log.orchestrator(
+        f"Baseline before debiasing — accuracy {metrics['accuracy']*100:.1f}%, P-rule {_pr}.")
 
     # Record the clean baseline accuracy — the accuracy this dataset can actually
     # reach before adversarial fairness pressure. The accuracy floor used during
@@ -357,7 +438,6 @@ def run_full_training(
     for iteration in range(max_iterations):
         state.current_iteration = iteration
 
-        import os
         os.environ["RUN_ITER"] = str(iteration + 1)
 
         # Train for epochs_per_step epochs
@@ -377,7 +457,7 @@ def run_full_training(
         # Evaluate
         metrics = evaluate(
             clf, state.X_test, state.y_test, state.sensitive_test,
-            state.sensitive_attrs, device
+            state.sensitive_attrs, device, sensitive_raw=state.sensitive_test_raw
         )
         metrics["adversary_loss"] = float(avg_adv_loss)
         metrics["clf_task_loss"]  = float(avg_task_loss)
@@ -391,6 +471,17 @@ def run_full_training(
             f"  fairness: {p_rule_str} | "
             f"adv_loss={avg_adv_loss:.4f} | λ={[round(l,3) for l in state.lambda_vector]}"
         )
+
+        # Per-iteration agent narration (the "agents in action" feed)
+        agent_log.classifier(
+            f"iter {iteration+1}: task loss {avg_task_loss:.3f}, accuracy {metrics['accuracy']*100:.1f}%.")
+        agent_log.adversary(
+            f"iter {iteration+1}: recovery loss {avg_adv_loss:.3f} "
+            f"({'losing the signal — good for fairness' if avg_adv_loss > 0.6 else 'still recovering attributes'}).")
+        _worst_attr = min(metrics["p_rules"], key=metrics["p_rules"].get) if metrics["p_rules"] else "—"
+        agent_log.orchestrator(
+            f"iter {iteration+1}: min P-rule {metrics['min_p_rule']:.1f}% "
+            f"(worst: {_worst_attr}). {'Target met.' if metrics['min_p_rule'] >= p_rule_threshold else 'Raising λ on lagging attributes.'}")
 
         # Update plotter
         plotter.update(
@@ -492,18 +583,21 @@ def run_full_training(
         f"P-rules={chosen.get('p_rules',{})}"
     )
 
-    # Fairness diffs per attribute (scaled to %, to match FFB benchmark)
+    # Fairness diffs per attribute (scaled to %, to match FFB benchmark), computed for
+    # every dataset — including user-uploaded ones — at BOTH ends of training:
+    #   fairness_baseline = before debiasing (post-pretrain), fairness_final = last/best.
     #   dp   = demographic parity difference        (FFB test/dp)
     #   eodd = equalized odds diff = mean(TPR gap, FPR gap)  (FFB test/eodd)
     #   eopp = equal opportunity diff = TPR gap      (FFB test/eopp)
-    fairness_final = {}
-    for attr, fm in chosen.get("fairness", {}).items():
-        eo = fm.get("equalized_odds", {})
-        fairness_final[attr] = {
-            "dp":   round(fm.get("demographic_parity_diff", 0.0) * 100.0, 2),
-            "eodd": round(0.5 * (eo.get("tpr_gap", 0.0) + eo.get("fpr_gap", 0.0)) * 100.0, 2),
-            "eopp": round(fm.get("equalized_opportunity", {}).get("tpr_gap", 0.0) * 100.0, 2),
-        }
+    fairness_baseline = _fairness_diffs((getattr(state, "initial_metrics", None) or {}).get("fairness", {}))
+    fairness_final    = _fairness_diffs(chosen.get("fairness", {}))
+
+    # Equalized-odds before vs after, printed for every run.
+    print("\n  [equalized odds]  (lower = fairer; % gap)")
+    for attr in state.sensitive_attrs:
+        b = fairness_baseline.get(attr, {}).get("eodd", float("nan"))
+        f = fairness_final.get(attr, {}).get("eodd", float("nan"))
+        print(f"    {attr:15s} before={b:6.2f}%  ->  after={f:6.2f}%")
 
     # Lambda at the best iteration (safer reference than lambda_final)
     # lambda_final is the momentum-updated value after the last iteration, which
@@ -533,6 +627,28 @@ def run_full_training(
     except Exception as e:
         print(f"[memory] fingerprint computation failed ({e}), saving without fingerprint")
 
+    # Qualitative bias report (KDE distributions + written analysis). Generated on
+    # the final classifier and stored in the run entry so the dashboard can show it
+    # at the bottom of the run. Never allowed to break a training run; skip with
+    # AADA_NO_REPORT=1 (e.g. ablation sweeps where the report is not needed).
+    report = None
+    if os.environ.get("AADA_NO_REPORT") != "1":
+        try:
+            from tools.report_tools import generate_report
+            reports_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
+            report = generate_report(state, reports_dir, language="en", context={
+                "fairness_baseline": fairness_baseline,
+                "fairness_final":    fairness_final,
+                "baseline_metrics":  getattr(state, "initial_metrics", None) or {},
+                "final_metrics":     chosen,
+                "lambda_final":      list(state.lambda_vector),
+                "iterations":        state.current_iteration + 1,
+                "threshold":         float(p_rule_threshold),
+            })
+        except Exception as e:
+            print(f"[report] qualitative report skipped ({e})")
+
     long_term.save_run(
         dataset_name=state.dataset_name,
         target_col=state.target_col,
@@ -546,9 +662,11 @@ def run_full_training(
         lambda_trajectory=lambda_trajectory,
         iteration_metrics=iteration_metrics,
         fairness_final=fairness_final,
+        fairness_baseline=fairness_baseline,
         fingerprint=run_fingerprint,
         lambda_at_best=lambda_at_best,
         seed=getattr(state, "seed", None),
+        report=report,
     )
 
     plot_filename = f"{state.dataset_name}_training_curves.png" if state.dataset_name else "training_curves.png"
@@ -561,7 +679,10 @@ def run_full_training(
         "total_epochs":             state.total_epochs_run,
         "final_metrics":            chosen,
         "final_lambda":             state.lambda_vector,
+        "fairness_baseline":        fairness_baseline,
+        "fairness_final":           fairness_final,
         "plot_saved":               plot_path,
+        "report":                   report,
         "long_term_memory_updated": True,
     }
 
