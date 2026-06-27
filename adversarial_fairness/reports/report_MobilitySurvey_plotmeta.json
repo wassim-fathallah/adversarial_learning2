@@ -1,0 +1,109 @@
+{
+  "dataset_name": "MobilitySurvey",
+  "target_col": "entry_status",
+  "attrs": [
+    "sex",
+    "origin_zone",
+    "schooling"
+  ],
+  "have_before": true,
+  "stats": {
+    "sex": {
+      "p_rule": 92.34,
+      "p_rule_before": 57.03,
+      "n_groups": 2,
+      "groups": {
+        "0": {
+          "n": 498,
+          "mean": 0.6365,
+          "median": 0.6017,
+          "std": 0.3223,
+          "sel_rate": 56.0241,
+          "true_rate": 84.5382,
+          "sel_rate_before": 83.9357
+        },
+        "1": {
+          "n": 1502,
+          "mean": 0.5961,
+          "median": 0.5174,
+          "std": 0.313,
+          "sel_rate": 51.731,
+          "true_rate": 50.6658,
+          "sel_rate_before": 47.8695
+        }
+      },
+      "labels": {
+        "0": "Female",
+        "1": "Male"
+      }
+    },
+    "origin_zone": {
+      "p_rule": 84.75,
+      "p_rule_before": 63.78,
+      "n_groups": 2,
+      "groups": {
+        "0": {
+          "n": 1135,
+          "mean": 0.5821,
+          "median": 0.4952,
+          "std": 0.3145,
+          "sel_rate": 48.9868,
+          "true_rate": 48.6344,
+          "sel_rate_before": 45.6388
+        },
+        "1": {
+          "n": 865,
+          "mean": 0.6377,
+          "median": 0.6324,
+          "std": 0.3148,
+          "sel_rate": 57.8035,
+          "true_rate": 72.8324,
+          "sel_rate_before": 71.5607
+        }
+      },
+      "labels": {
+        "1": "origin_zone = Coastal",
+        "0": "origin_zone ≠ Coastal"
+      }
+    },
+    "schooling": {
+      "p_rule": 85.71,
+      "p_rule_before": 38.96,
+      "n_groups": 2,
+      "groups": {
+        "0": {
+          "n": 1235,
+          "mean": 0.576,
+          "median": 0.498,
+          "std": 0.3179,
+          "sel_rate": 49.6356,
+          "true_rate": 38.2186,
+          "sel_rate_before": 35.5466
+        },
+        "1": {
+          "n": 765,
+          "mean": 0.6549,
+          "median": 0.6346,
+          "std": 0.3063,
+          "sel_rate": 57.9085,
+          "true_rate": 92.8105,
+          "sel_rate_before": 91.2418
+        }
+      },
+      "labels": {
+        "1": "schooling = Higher",
+        "0": "schooling ≠ Higher"
+      }
+    }
+  },
+  "eodd_before": [
+    12.83,
+    9.86,
+    27.5
+  ],
+  "eodd_after": [
+    7.83,
+    14.71,
+    8.38
+  ]
+}

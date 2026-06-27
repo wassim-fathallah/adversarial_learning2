@@ -1,0 +1,597 @@
+{
+  "HIMS-real10k|legal_entry|Gender,educ_level,region_origin": [
+    {
+      "timestamp": "2026-06-25T04:47:24.060075",
+      "seed": 42,
+      "lambda_final": [
+        0.3168746458330371,
+        7.060872348930219,
+        3.7362222651283234
+      ],
+      "lambda_at_best": [
+        0.3169,
+        7.0609,
+        3.7362
+      ],
+      "p_rules_final": {
+        "Gender": 86.30635419626245,
+        "region_origin": 85.5072463768116,
+        "educ_level": 80.56655498020103
+      },
+      "accuracy_final": 0.8405,
+      "total_epochs": 570,
+      "iterations": 14,
+      "success": true,
+      "lambda_trajectory": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.012784139767410135,
+          0.13538845331432645,
+          0.07118523024836668
+        ],
+        [
+          0.03584379250238251,
+          0.3852338195156719,
+          0.20850185828279308
+        ],
+        [
+          0.0663992899748337,
+          0.7439443234499896,
+          0.40243139829383545
+        ],
+        [
+          0.10598546180334995,
+          1.219644188890189,
+          0.6489474392750318
+        ],
+        [
+          0.15015176938892374,
+          1.771975220222199,
+          0.9365508990399887
+        ],
+        [
+          0.20449427950196247,
+          2.4148045337404938,
+          1.2710105612285034
+        ],
+        [
+          0.26531106664636017,
+          3.1306405372253323,
+          1.6363734215473311
+        ],
+        [
+          0.3233811614388274,
+          3.8684497764014987,
+          2.014683165725609
+        ],
+        [
+          0.3746996993665009,
+          4.6184684298243,
+          2.4018007474937235
+        ],
+        [
+          0.4037944637743126,
+          5.332470118759832,
+          2.7688561418532416
+        ],
+        [
+          0.4066751706812682,
+          5.975748759257977,
+          3.1229167258817276
+        ],
+        [
+          0.3752307297611292,
+          6.552215063656617,
+          3.4451602872005225
+        ],
+        [
+          0.3168746458330371,
+          7.060872348930219,
+          3.7362222651283234
+        ]
+      ],
+      "iteration_metrics": [
+        {
+          "iteration": 0,
+          "accuracy": 0.8735,
+          "f1_score": 0.9172,
+          "roc_auc": 0.9301,
+          "precision": 0.911,
+          "p_rules": {
+            "Gender": 77.34,
+            "region_origin": 54.0,
+            "educ_level": 66.88
+          },
+          "lambda": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "adv_loss": 0.0
+        },
+        {
+          "iteration": 1,
+          "accuracy": 0.863,
+          "f1_score": 0.9105,
+          "roc_auc": 0.9167,
+          "precision": 0.9028,
+          "p_rules": {
+            "Gender": 77.44,
+            "region_origin": 52.92,
+            "educ_level": 65.76
+          },
+          "lambda": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "adv_loss": 0.4771
+        },
+        {
+          "iteration": 2,
+          "accuracy": 0.875,
+          "f1_score": 0.9184,
+          "roc_auc": 0.9152,
+          "precision": 0.9106,
+          "p_rules": {
+            "Gender": 77.69,
+            "region_origin": 54.4,
+            "educ_level": 65.35
+          },
+          "lambda": [
+            0.0128,
+            0.1354,
+            0.0712
+          ],
+          "adv_loss": 0.4814
+        },
+        {
+          "iteration": 3,
+          "accuracy": 0.871,
+          "f1_score": 0.9161,
+          "roc_auc": 0.9009,
+          "precision": 0.9049,
+          "p_rules": {
+            "Gender": 78.04,
+            "region_origin": 53.23,
+            "educ_level": 65.93
+          },
+          "lambda": [
+            0.0358,
+            0.3852,
+            0.2085
+          ],
+          "adv_loss": 0.4819
+        },
+        {
+          "iteration": 4,
+          "accuracy": 0.8645,
+          "f1_score": 0.9109,
+          "roc_auc": 0.9121,
+          "precision": 0.9089,
+          "p_rules": {
+            "Gender": 77.58,
+            "region_origin": 49.43,
+            "educ_level": 65.6
+          },
+          "lambda": [
+            0.0664,
+            0.7439,
+            0.4024
+          ],
+          "adv_loss": 0.4818
+        },
+        {
+          "iteration": 5,
+          "accuracy": 0.872,
+          "f1_score": 0.9163,
+          "roc_auc": 0.9055,
+          "precision": 0.9092,
+          "p_rules": {
+            "Gender": 78.29,
+            "region_origin": 55.16,
+            "educ_level": 66.85
+          },
+          "lambda": [
+            0.106,
+            1.2196,
+            0.6489
+          ],
+          "adv_loss": 0.4817
+        },
+        {
+          "iteration": 6,
+          "accuracy": 0.8695,
+          "f1_score": 0.9138,
+          "roc_auc": 0.9103,
+          "precision": 0.9159,
+          "p_rules": {
+            "Gender": 77.08,
+            "region_origin": 50.85,
+            "educ_level": 64.88
+          },
+          "lambda": [
+            0.1502,
+            1.772,
+            0.9366
+          ],
+          "adv_loss": 0.4818
+        },
+        {
+          "iteration": 7,
+          "accuracy": 0.868,
+          "f1_score": 0.9132,
+          "roc_auc": 0.9057,
+          "precision": 0.912,
+          "p_rules": {
+            "Gender": 77.62,
+            "region_origin": 52.54,
+            "educ_level": 67.13
+          },
+          "lambda": [
+            0.2045,
+            2.4148,
+            1.271
+          ],
+          "adv_loss": 0.4818
+        },
+        {
+          "iteration": 8,
+          "accuracy": 0.878,
+          "f1_score": 0.9212,
+          "roc_auc": 0.902,
+          "precision": 0.9037,
+          "p_rules": {
+            "Gender": 79.33,
+            "region_origin": 61.29,
+            "educ_level": 70.1
+          },
+          "lambda": [
+            0.2653,
+            3.1306,
+            1.6364
+          ],
+          "adv_loss": 0.4819
+        },
+        {
+          "iteration": 9,
+          "accuracy": 0.863,
+          "f1_score": 0.9109,
+          "roc_auc": 0.9081,
+          "precision": 0.8992,
+          "p_rules": {
+            "Gender": 80.19,
+            "region_origin": 62.8,
+            "educ_level": 70.67
+          },
+          "lambda": [
+            0.3234,
+            3.8684,
+            2.0147
+          ],
+          "adv_loss": 0.4828
+        },
+        {
+          "iteration": 10,
+          "accuracy": 0.8545,
+          "f1_score": 0.9054,
+          "roc_auc": 0.9032,
+          "precision": 0.8935,
+          "p_rules": {
+            "Gender": 83.42,
+            "region_origin": 72.2,
+            "educ_level": 76.27
+          },
+          "lambda": [
+            0.3747,
+            4.6185,
+            2.4018
+          ],
+          "adv_loss": 0.4902
+        },
+        {
+          "iteration": 11,
+          "accuracy": 0.849,
+          "f1_score": 0.9032,
+          "roc_auc": 0.8851,
+          "precision": 0.8795,
+          "p_rules": {
+            "Gender": 84.66,
+            "region_origin": 79.86,
+            "educ_level": 75.26
+          },
+          "lambda": [
+            0.4038,
+            5.3325,
+            2.7689
+          ],
+          "adv_loss": 0.4968
+        },
+        {
+          "iteration": 12,
+          "accuracy": 0.8415,
+          "f1_score": 0.8974,
+          "roc_auc": 0.8823,
+          "precision": 0.8822,
+          "p_rules": {
+            "Gender": 86.81,
+            "region_origin": 80.5,
+            "educ_level": 79.28
+          },
+          "lambda": [
+            0.4067,
+            5.9757,
+            3.1229
+          ],
+          "adv_loss": 0.4987
+        },
+        {
+          "iteration": 13,
+          "accuracy": 0.844,
+          "f1_score": 0.901,
+          "roc_auc": 0.8835,
+          "precision": 0.8695,
+          "p_rules": {
+            "Gender": 86.01,
+            "region_origin": 82.03,
+            "educ_level": 79.79
+          },
+          "lambda": [
+            0.3752,
+            6.5522,
+            3.4452
+          ],
+          "adv_loss": 0.4996
+        },
+        {
+          "iteration": 14,
+          "accuracy": 0.8405,
+          "f1_score": 0.8984,
+          "roc_auc": 0.8786,
+          "precision": 0.8698,
+          "p_rules": {
+            "Gender": 86.31,
+            "region_origin": 85.51,
+            "educ_level": 80.57
+          },
+          "lambda": [
+            0.3169,
+            7.0609,
+            3.7362
+          ],
+          "adv_loss": 0.5002
+        }
+      ],
+      "fairness_final": {
+        "Gender": {
+          "dp": 12.39,
+          "eodd": 3.62,
+          "eopp": 0.64
+        },
+        "region_origin": {
+          "dp": 4.63,
+          "eodd": 10.16,
+          "eopp": 0.49
+        },
+        "educ_level": {
+          "dp": 10.34,
+          "eodd": 4.9,
+          "eopp": 0.24
+        }
+      },
+      "fairness_baseline": {
+        "Gender": {
+          "dp": 21.09,
+          "eodd": 5.33,
+          "eopp": 5.49
+        },
+        "region_origin": {
+          "dp": 30.45,
+          "eodd": 13.8,
+          "eopp": 14.32
+        },
+        "educ_level": {
+          "dp": 21.57,
+          "eodd": 4.99,
+          "eopp": 8.26
+        }
+      },
+      "fingerprint": {
+        "n_sensitive": 3,
+        "sensitive_imbalance": [
+          0.1285,
+          0.2459,
+          0.2789
+        ],
+        "target_balance": 0.759,
+        "n_samples_log10": 3.903,
+        "n_features_log10": 1.74
+      },
+      "report": {
+        "plots": [
+          {
+            "title": "Predicted-outcome distribution by group",
+            "plot": "reports/report_HIMS-real10k_distributions.png"
+          },
+          {
+            "title": "Before → after debiasing",
+            "plot": "reports/report_HIMS-real10k_before_after.png"
+          },
+          {
+            "title": "Equalized odds — before vs after",
+            "plot": "reports/report_HIMS-real10k_eodd.png"
+          }
+        ],
+        "plot": "reports/report_HIMS-real10k_distributions.png",
+        "narrative": "The disadvantaged group for each sensitive attribute is as follows: Males have a lower predicted-positive rate compared to females, with a 12.4 percentage point gap (90.5% vs 78.1%) and a P-rule of 0.93; individuals from the Center-West region have a lower actual outcome rate compared to those from Greater Tunis, with a 40 percentage point gap (92.2% vs 52.2%) and a P-rule of 0.53; and individuals with low educational level have a lower predicted-positive rate compared to those with higher education, with a 21.3 percentage point gap (88.7% vs 71.4%) and a P-rule of 0.80.\n\nThe model amplifies the actual outcome-rate gaps for all three attributes, as the predicted-positive rates are not aligned with the actual outcomes. Debiasing improved the P-rule from 77.3% to 86.3% for gender, but at the cost of reducing accuracy from 87.3% to 84.0%. The debiasing process also reduced the P-rule for region_origin from 54.0% to 85.5%, but with a corresponding decrease in accuracy. It's worth noting that these gaps are not designed into the model, but rather flow through correlated proxies, highlighting the need for careful consideration of fairness metrics and debiasing techniques.",
+        "stats": {
+          "Gender": {
+            "p_rule": 86.31,
+            "p_rule_before": 77.34,
+            "n_groups": 2,
+            "groups": {
+              "0": {
+                "n": 1526,
+                "mean": 0.7473,
+                "median": 0.9655,
+                "std": 0.3556,
+                "sel_rate": 78.1127,
+                "true_rate": 69.9869,
+                "sel_rate_before": 71.9528
+              },
+              "1": {
+                "n": 474,
+                "mean": 0.871,
+                "median": 0.9995,
+                "std": 0.2525,
+                "sel_rate": 90.5063,
+                "true_rate": 94.9367,
+                "sel_rate_before": 93.038
+              }
+            },
+            "labels": {
+              "0": "Male",
+              "1": "Female"
+            }
+          },
+          "region_origin": {
+            "p_rule": 85.51,
+            "p_rule_before": 54.0,
+            "n_groups": 3,
+            "groups": {
+              "0": {
+                "n": 230,
+                "mean": 0.7336,
+                "median": 0.9184,
+                "std": 0.3625,
+                "sel_rate": 76.9565,
+                "true_rate": 52.1739,
+                "sel_rate_before": 50.0
+              },
+              "1": {
+                "n": 270,
+                "mean": 0.8618,
+                "median": 0.9994,
+                "std": 0.246,
+                "sel_rate": 90.0,
+                "true_rate": 92.2222,
+                "sel_rate_before": 92.5926
+              },
+              "2": {
+                "n": 1500,
+                "mean": 0.7679,
+                "median": 0.9859,
+                "std": 0.346,
+                "sel_rate": 80.0667,
+                "true_rate": 76.6,
+                "sel_rate_before": 78.2667
+              }
+            },
+            "labels": {
+              "0": "Center-West",
+              "1": "Greater Tunis",
+              "2": "Others"
+            }
+          },
+          "educ_level": {
+            "p_rule": 80.57,
+            "p_rule_before": 66.88,
+            "n_groups": 3,
+            "groups": {
+              "0": {
+                "n": 529,
+                "mean": 0.8556,
+                "median": 0.9989,
+                "std": 0.2695,
+                "sel_rate": 88.6578,
+                "true_rate": 92.4386,
+                "sel_rate_before": 92.8166
+              },
+              "1": {
+                "n": 385,
+                "mean": 0.6825,
+                "median": 0.8826,
+                "std": 0.3781,
+                "sel_rate": 71.4286,
+                "true_rate": 48.0519,
+                "sel_rate_before": 62.0779
+              },
+              "2": {
+                "n": 1086,
+                "mean": 0.7716,
+                "median": 0.9831,
+                "std": 0.344,
+                "sel_rate": 80.7551,
+                "true_rate": 77.7164,
+                "sel_rate_before": 74.4936
+              }
+            },
+            "labels": {
+              "0": "Higher education",
+              "1": "Low",
+              "2": "Mid"
+            }
+          }
+        },
+        "fairness": {
+          "Gender": {
+            "prule_before": 77.34,
+            "prule_after": 86.31,
+            "dp_before": 21.09,
+            "dp_after": 12.39,
+            "eodd_before": 5.33,
+            "eodd_after": 3.62,
+            "eopp_before": 5.49,
+            "eopp_after": 0.64
+          },
+          "region_origin": {
+            "prule_before": 54.0,
+            "prule_after": 85.51,
+            "dp_before": 30.45,
+            "dp_after": 4.63,
+            "eodd_before": 13.8,
+            "eodd_after": 10.16,
+            "eopp_before": 14.32,
+            "eopp_after": 0.49
+          },
+          "educ_level": {
+            "prule_before": 66.88,
+            "prule_after": 80.57,
+            "dp_before": 21.57,
+            "dp_after": 10.34,
+            "eodd_before": 4.99,
+            "eodd_after": 4.9,
+            "eopp_before": 8.26,
+            "eopp_after": 0.24
+          }
+        },
+        "summary": {
+          "acc_before": 87.35,
+          "acc_after": 84.05,
+          "lambda_final": [
+            0.317,
+            7.061,
+            3.736
+          ],
+          "iterations": 14,
+          "threshold": 80.0,
+          "attrs": [
+            "Gender",
+            "region_origin",
+            "educ_level"
+          ],
+          "verdicts": {
+            "Gender": "PASS — P-rule 86% ≥ 80%",
+            "region_origin": "PASS — P-rule 86% ≥ 80%",
+            "educ_level": "PASS — P-rule 81% ≥ 80%"
+          }
+        },
+        "language": "en"
+      }
+    }
+  ]
+}

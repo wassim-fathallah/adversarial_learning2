@@ -1,0 +1,22 @@
+{
+  "region_origin_binarization": {
+    "positive_value": "Center-West"
+  },
+  "proxies_added_to_drop": [
+    "Center_East",
+    "coastal_origin",
+    "france",
+    "ger",
+    "greater_tunis",
+    "higher_educ",
+    "ita"
+  ],
+  "proxies_MISSING_from_drop": [],
+  "proxies_leaked_into_features": [],
+  "region_origin_groups": 7,
+  "p_rules": {
+    "Gender": 74.7,
+    "region_origin": 57.0,
+    "educ_level": 62.4
+  }
+}

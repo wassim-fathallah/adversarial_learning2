@@ -1,0 +1,116 @@
+{
+  "description": "HIMS-Tunisia run that reached >=80%% P-rule on all 3 grouped attributes",
+  "saved_at": "2026-06-23T03:47:28",
+  "dataset": "HIMS-Tunisia",
+  "dataset_path": "datasets/HIMS-Tunisia/HIMS-Tunisia.csv",
+  "target_col": "legal_entry",
+  "run_command": "AADA_MOMENTUM_BETA=0.9 python main.py --dataset HIMS-Tunisia --iterations 40 --seed 42",
+  "hyperparameters": {
+    "seed": 42,
+    "max_iterations": 40,
+    "stopped_at_iteration": 28,
+    "epochs_per_step": 50,
+    "pretrain_epochs": 10,
+    "p_rule_threshold": 80.0,
+    "momentum_beta": 0.9,
+    "lambda_learning_rate": 2.5,
+    "lambda_max": 20.0,
+    "early_stop": true,
+    "batch_size": 32
+  },
+  "sensitive_attrs": [
+    "Gender",
+    "region_origin",
+    "educ_level"
+  ],
+  "training_binarization_rules": {
+    "Gender": {
+      "positive_value": "Female"
+    },
+    "region_origin": {
+      "positive_value": "Center-West"
+    },
+    "educ_level": {
+      "positive_value": "Higher education"
+    }
+  },
+  "grouped_prule_buckets": {
+    "region_origin": {
+      "Center-West": [
+        "Center-West"
+      ],
+      "Greater Tunis": [
+        "Greater Tunis"
+      ],
+      "Others": [
+        "Center-East",
+        "South-East",
+        "North-East",
+        "South-West",
+        "North-West"
+      ]
+    },
+    "educ_level": {
+      "Low": [
+        "No education",
+        "Primary"
+      ],
+      "Mid": [
+        "Vocational",
+        "Secondary"
+      ],
+      "Higher education": [
+        "Higher education"
+      ]
+    },
+    "Gender": "binary (Female vs Male)"
+  },
+  "columns_dropped_proxies": [
+    "id_menage",
+    "Id_Ind",
+    "weight",
+    "Poids_Final",
+    "greater_tunis",
+    "Center_East",
+    "coastal_origin",
+    "higher_educ",
+    "france",
+    "ita",
+    "ger"
+  ],
+  "results": {
+    "status": "optimal (fairness target met)",
+    "success": true,
+    "accuracy": 0.8341,
+    "f1_score": 0.8949,
+    "roc_auc": 0.8542,
+    "p_rules": {
+      "Gender": 82.89,
+      "region_origin": 80.14,
+      "educ_level": 80.03
+    },
+    "min_p_rule": 80.03,
+    "lambda_final": {
+      "Gender": 1.1176,
+      "region_origin": 8.9204,
+      "educ_level": 1.6095
+    },
+    "fairness_diffs_pct": {
+      "Gender": {
+        "dp": 16.04,
+        "eodd": 9.22,
+        "eopp": 5.63
+      },
+      "region_origin": {
+        "dp": 10.31,
+        "eodd": 4.92,
+        "eopp": 8.26
+      },
+      "educ_level": {
+        "dp": 18.49,
+        "eodd": 8.7,
+        "eopp": 7.78
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "device": "cpu",
+  "n_rows_train": 2528,
+  "n_features": 89,
+  "groups_per_attr": {
+    "Gender": 2,
+    "region_origin": 7,
+    "educ_level": 5
+  },
+  "baseline": {
+    "accuracy": 0.8626,
+    "p_rules": {
+      "Gender": 80.0,
+      "region_origin": 54.4,
+      "educ_level": 65.2
+    }
+  }
+}

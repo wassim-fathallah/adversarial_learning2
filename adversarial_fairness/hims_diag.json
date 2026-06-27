@@ -1,0 +1,15 @@
+{
+  "region_origin_p_rule_BINARY_2grp_OLD_metric": 81.4,
+  "region_origin_p_rule_MULTIGROUP_7grp_NEW_metric": 75.1,
+  "n_groups_binary": 2,
+  "n_groups_raw": 7,
+  "per_region_positive_rate": {
+    "0": 0.793,
+    "1": 0.653,
+    "2": 0.84,
+    "3": 0.828,
+    "4": 0.87,
+    "5": 0.785,
+    "6": 0.722
+  }
+}

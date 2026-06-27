@@ -1,0 +1,97 @@
+{
+  "n_features": 89,
+  "groups_per_attr": {
+    "Gender": 2,
+    "region_origin": 7,
+    "educ_level": 5
+  },
+  "baseline": {
+    "accuracy": 0.8515,
+    "p_rules": {
+      "Gender": 76.7,
+      "region_origin": 56.2,
+      "educ_level": 62.4
+    }
+  },
+  "final": {
+    "status": "best_fairness_target_not_met",
+    "iterations_run": null,
+    "success": null,
+    "final_metrics": {
+      "accuracy": 0.8246,
+      "precision": 0.883,
+      "f1_score": 0.8857,
+      "roc_auc": 0.8396,
+      "avg_precision": 0.9263,
+      "p_rules": {
+        "Gender": 80.86833411986785,
+        "region_origin": 76.10294117647058,
+        "educ_level": 76.48981161091889
+      },
+      "min_p_rule": 76.10294117647058,
+      "fairness": {
+        "Gender": {
+          "p_rule": 80.86833411986785,
+          "equalized_odds": {
+            "tpr_gap": 0.0344,
+            "fpr_gap": 0.296,
+            "tpr_group0": 0.8786,
+            "tpr_group1": 0.913,
+            "fpr_group0": 0.3706,
+            "fpr_group1": 0.6667
+          },
+          "equalized_opportunity": {
+            "tpr_gap": 0.0344,
+            "tpr_group0": 0.8786,
+            "tpr_group1": 0.913
+          },
+          "demographic_parity_diff": 0.1727,
+          "abcc": 0.2801
+        },
+        "region_origin": {
+          "p_rule": 76.10294117647058,
+          "equalized_odds": {
+            "tpr_gap": 0.0905,
+            "fpr_gap": 0.1015,
+            "tpr_group0": 0.8817,
+            "tpr_group1": 0.9722,
+            "fpr_group0": 0.4071,
+            "fpr_group1": 0.3056
+          },
+          "equalized_opportunity": {
+            "tpr_gap": 0.0905,
+            "tpr_group0": 0.8817,
+            "tpr_group1": 0.9722
+          },
+          "demographic_parity_diff": 0.1472,
+          "abcc": 0.2262
+        },
+        "educ_level": {
+          "p_rule": 76.48981161091889,
+          "equalized_odds": {
+            "tpr_gap": 0.0378,
+            "fpr_gap": 0.0777,
+            "tpr_group0": 0.8758,
+            "tpr_group1": 0.9136,
+            "fpr_group0": 0.3768,
+            "fpr_group1": 0.4545
+          },
+          "equalized_opportunity": {
+            "tpr_gap": 0.0378,
+            "tpr_group0": 0.8758,
+            "tpr_group1": 0.9136
+          },
+          "demographic_parity_diff": 0.1583,
+          "abcc": 0.2821
+        }
+      },
+      "adversary_loss": 1.1699164369136472,
+      "clf_task_loss": 0.1375145519945381
+    },
+    "lambda_final": [
+      0.27136868100990114,
+      7.093404232951335,
+      6.497442032456087
+    ]
+  }
+}

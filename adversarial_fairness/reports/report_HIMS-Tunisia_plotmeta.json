@@ -1,0 +1,129 @@
+{
+  "dataset_name": "HIMS-Tunisia",
+  "target_col": "legal_entry",
+  "attrs": [
+    "Gender",
+    "region_origin",
+    "educ_level"
+  ],
+  "have_before": true,
+  "stats": {
+    "Gender": {
+      "p_rule": 84.69,
+      "p_rule_before": 75.97,
+      "n_groups": 2,
+      "groups": {
+        "0": {
+          "n": 489,
+          "mean": 0.7723,
+          "median": 0.996,
+          "std": 0.3629,
+          "sel_rate": 80.5726,
+          "true_rate": 70.7566,
+          "sel_rate_before": 72.8016
+        },
+        "1": {
+          "n": 144,
+          "mean": 0.9343,
+          "median": 1.0,
+          "std": 0.1775,
+          "sel_rate": 95.1389,
+          "true_rate": 95.8333,
+          "sel_rate_before": 95.8333
+        }
+      },
+      "labels": {
+        "0": "Male",
+        "1": "Female"
+      }
+    },
+    "region_origin": {
+      "p_rule": 84.0,
+      "p_rule_before": 59.29,
+      "n_groups": 3,
+      "groups": {
+        "0": {
+          "n": 72,
+          "mean": 0.7428,
+          "median": 0.9988,
+          "std": 0.3746,
+          "sel_rate": 77.7778,
+          "true_rate": 50.0,
+          "sel_rate_before": 54.1667
+        },
+        "1": {
+          "n": 81,
+          "mean": 0.8965,
+          "median": 1.0,
+          "std": 0.2396,
+          "sel_rate": 92.5926,
+          "true_rate": 91.358,
+          "sel_rate_before": 91.358
+        },
+        "2": {
+          "n": 480,
+          "mean": 0.8044,
+          "median": 0.9997,
+          "std": 0.342,
+          "sel_rate": 83.3333,
+          "true_rate": 77.9167,
+          "sel_rate_before": 79.375
+        }
+      },
+      "labels": {
+        "0": "Center-West",
+        "1": "Greater Tunis",
+        "2": "Others"
+      }
+    },
+    "educ_level": {
+      "p_rule": 82.25,
+      "p_rule_before": 69.54,
+      "n_groups": 3,
+      "groups": {
+        "0": {
+          "n": 173,
+          "mean": 0.9258,
+          "median": 1.0,
+          "std": 0.1824,
+          "sel_rate": 95.3757,
+          "true_rate": 93.6416,
+          "sel_rate_before": 94.2197
+        },
+        "1": {
+          "n": 116,
+          "mean": 0.7589,
+          "median": 0.9902,
+          "std": 0.3835,
+          "sel_rate": 78.4483,
+          "true_rate": 68.1034,
+          "sel_rate_before": 65.5172
+        },
+        "2": {
+          "n": 344,
+          "mean": 0.7674,
+          "median": 0.9986,
+          "std": 0.3648,
+          "sel_rate": 79.9419,
+          "true_rate": 70.6395,
+          "sel_rate_before": 74.1279
+        }
+      },
+      "labels": {
+        "0": "Higher education",
+        "1": "Low",
+        "2": "Mid"
+      }
+    }
+  },
+  "eodd_before": [
+    5.27,
+    10.18,
+    6.96
+  ],
+  "eodd_after": [
+    2.2,
+    6.57,
+    14.12
+  ]
+}

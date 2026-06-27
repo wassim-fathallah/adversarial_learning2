@@ -1,0 +1,22 @@
+{
+  "change1_proxies_leaked": [],
+  "change1_PASS": true,
+  "groups_Gender": {
+    "raw": 2,
+    "binary": 2
+  },
+  "groups_region_origin": {
+    "raw": 7,
+    "binary": 2
+  },
+  "groups_educ_level": {
+    "raw": 5,
+    "binary": 2
+  },
+  "pretrain_p_rules": {
+    "Gender": 74.36,
+    "region_origin": 57.0,
+    "educ_level": 62.43
+  },
+  "change2_PASS": true
+}

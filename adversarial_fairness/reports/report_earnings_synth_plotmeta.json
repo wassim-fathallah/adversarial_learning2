@@ -1,0 +1,77 @@
+{
+  "dataset_name": "earnings_synth",
+  "target_col": "high_earner",
+  "attrs": [
+    "origin_group",
+    "background_group"
+  ],
+  "have_before": true,
+  "stats": {
+    "origin_group": {
+      "p_rule": 85.82,
+      "p_rule_before": 42.34,
+      "n_groups": 2,
+      "groups": {
+        "0": {
+          "n": 795,
+          "mean": 0.2098,
+          "median": 0.0132,
+          "std": 0.3208,
+          "sel_rate": 18.9937,
+          "true_rate": 10.1887,
+          "sel_rate_before": 9.8113
+        },
+        "1": {
+          "n": 5205,
+          "mean": 0.2368,
+          "median": 0.0207,
+          "std": 0.3455,
+          "sel_rate": 22.1326,
+          "true_rate": 25.5331,
+          "sel_rate_before": 23.17
+        }
+      },
+      "labels": {
+        "0": "B",
+        "1": "A"
+      }
+    },
+    "background_group": {
+      "p_rule": 82.51,
+      "p_rule_before": 47.51,
+      "n_groups": 2,
+      "groups": {
+        "0": {
+          "n": 2017,
+          "mean": 0.2106,
+          "median": 0.0126,
+          "std": 0.3288,
+          "sel_rate": 19.0382,
+          "true_rate": 13.6341,
+          "sel_rate_before": 12.3451
+        },
+        "1": {
+          "n": 3983,
+          "mean": 0.2447,
+          "median": 0.0257,
+          "std": 0.3486,
+          "sel_rate": 23.0731,
+          "true_rate": 28.4961,
+          "sel_rate_before": 25.9854
+        }
+      },
+      "labels": {
+        "0": "Y",
+        "1": "X"
+      }
+    }
+  },
+  "eodd_before": [
+    4.58,
+    5.52
+  ],
+  "eodd_after": [
+    10.05,
+    7.33
+  ]
+}

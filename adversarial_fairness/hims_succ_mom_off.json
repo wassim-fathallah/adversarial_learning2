@@ -1,0 +1,997 @@
+{
+  "HIMS-Tunisia|legal_entry|Gender,educ_level,region_origin": [
+    {
+      "timestamp": "2026-06-23T04:23:50.977994",
+      "seed": 42,
+      "lambda_final": [
+        0.0,
+        8.761425600768607,
+        3.1072762868115316
+      ],
+      "lambda_at_best": [
+        0.8896,
+        6.5692,
+        1.532
+      ],
+      "p_rules_final": {
+        "Gender": 81.72846092291277,
+        "region_origin": 79.5,
+        "educ_level": 79.54022988505747
+      },
+      "accuracy_final": 0.8373,
+      "total_epochs": 2010,
+      "iterations": 40,
+      "success": false,
+      "lambda_trajectory": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.05622986273557871,
+          0.5375,
+          0.12447753396029242
+        ],
+        [
+          0.1463872380356591,
+          1.1124999999999998,
+          0.24881643812784054
+        ],
+        [
+          0.1705662347877343,
+          1.7975649350649348,
+          0.3730132682841912
+        ],
+        [
+          0.2252883699361824,
+          2.3725649350649345,
+          0.4172639142790231
+        ],
+        [
+          0.29613159236240594,
+          2.9663149350649345,
+          0.5300246635340254
+        ],
+        [
+          0.4106215954519587,
+          3.294017637767637,
+          0.6248402577700076
+        ],
+        [
+          0.5039260929582482,
+          3.6815176377676373,
+          0.726305246134721
+        ],
+        [
+          0.6047529801281601,
+          4.085233853983853,
+          0.9075499896166384
+        ],
+        [
+          0.6218592449617997,
+          4.435233853983853,
+          0.9406592063379967
+        ],
+        [
+          0.6641223669795226,
+          4.991977275036485,
+          1.0298294649586863
+        ],
+        [
+          0.754279742279603,
+          5.243666464225674,
+          1.2110742084406037
+        ],
+        [
+          0.8284328497749353,
+          5.631166464225674,
+          1.2778047320676789
+        ],
+        [
+          0.8545731538560236,
+          5.906166464225675,
+          1.3453772720172161
+        ],
+        [
+          0.8896175110083387,
+          6.055837516857253,
+          1.4253380401361504
+        ],
+        [
+          0.878414523545015,
+          6.2558375168572535,
+          1.4581812810923593
+        ],
+        [
+          0.8458725123420275,
+          6.355499679019416,
+          1.5374655026179607
+        ],
+        [
+          0.8896175110083387,
+          6.569182111451848,
+          1.5320082333926788
+        ],
+        [
+          0.8464059879355194,
+          6.5816821114518484,
+          1.543502486266242
+        ],
+        [
+          0.8896175110083387,
+          6.768359743030795,
+          1.6562632355212443
+        ],
+        [
+          0.8271851761111894,
+          6.930859743030795,
+          1.7355474570468457
+        ],
+        [
+          0.8227966579077951,
+          7.055859743030795,
+          1.8264022555512078
+        ],
+        [
+          0.7549511147825695,
+          7.0575044798729,
+          1.9397175858378717
+        ],
+        [
+          0.6681788148311196,
+          7.096155795662374,
+          1.8834218700593977
+        ],
+        [
+          0.5949200634778173,
+          7.183655795662374,
+          1.9397175858378717
+        ],
+        [
+          0.5608369005602986,
+          7.383655795662374,
+          2.063914415994222
+        ],
+        [
+          0.49509200540417747,
+          7.5836557956623745,
+          2.2111272359646055
+        ],
+        [
+          0.44266590389832117,
+          7.939986964493543,
+          2.323600296309433
+        ],
+        [
+          0.4181260265977078,
+          8.163671175019859,
+          2.459376158378398
+        ],
+        [
+          0.36652010815671165,
+          8.138671175019859,
+          2.5491217948194365
+        ],
+        [
+          0.2015575996359208,
+          8.163671175019859,
+          2.5030221312365937
+        ],
+        [
+          0.09186068543392463,
+          8.23730131200616,
+          2.627361035404142
+        ],
+        [
+          0.0,
+          8.28730131200616,
+          2.5790159949614004
+        ],
+        [
+          0.0,
+          8.44980131200616,
+          2.7147918570303657
+        ],
+        [
+          0.0,
+          8.488452627795633,
+          2.805646655534728
+        ],
+        [
+          0.0,
+          8.538452627795634,
+          2.8171409084082915
+        ],
+        [
+          0.0,
+          8.486087762930769,
+          2.873828473716546
+        ],
+        [
+          0.0,
+          8.538452627795634,
+          2.906671714672755
+        ],
+        [
+          0.0,
+          8.676121546714553,
+          2.9958419732934445
+        ],
+        [
+          0.0,
+          8.737776952119958,
+          3.051559130052488
+        ]
+      ],
+      "iteration_metrics": [
+        {
+          "iteration": 0,
+          "accuracy": 0.8562,
+          "f1_score": 0.907,
+          "roc_auc": 0.8964,
+          "precision": 0.897,
+          "p_rules": {
+            "Gender": 76.18,
+            "region_origin": 56.25,
+            "educ_level": 70.45
+          },
+          "lambda": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "adv_loss": 0.0
+        },
+        {
+          "iteration": 1,
+          "accuracy": 0.8515,
+          "f1_score": 0.9051,
+          "roc_auc": 0.8874,
+          "precision": 0.8854,
+          "p_rules": {
+            "Gender": 77.75,
+            "region_origin": 58.5,
+            "educ_level": 75.02
+          },
+          "lambda": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "adv_loss": 0.475
+        },
+        {
+          "iteration": 2,
+          "accuracy": 0.8483,
+          "f1_score": 0.902,
+          "roc_auc": 0.8876,
+          "precision": 0.8911,
+          "p_rules": {
+            "Gender": 76.39,
+            "region_origin": 57.0,
+            "educ_level": 75.03
+          },
+          "lambda": [
+            0.0562,
+            0.5375,
+            0.1245
+          ],
+          "adv_loss": 0.4786
+        },
+        {
+          "iteration": 3,
+          "accuracy": 0.8657,
+          "f1_score": 0.9137,
+          "roc_auc": 0.892,
+          "precision": 0.8982,
+          "p_rules": {
+            "Gender": 79.03,
+            "region_origin": 52.6,
+            "educ_level": 75.03
+          },
+          "lambda": [
+            0.1464,
+            1.1125,
+            0.2488
+          ],
+          "adv_loss": 0.4791
+        },
+        {
+          "iteration": 4,
+          "accuracy": 0.8499,
+          "f1_score": 0.9034,
+          "roc_auc": 0.8847,
+          "precision": 0.8898,
+          "p_rules": {
+            "Gender": 77.81,
+            "region_origin": 57.0,
+            "educ_level": 78.23
+          },
+          "lambda": [
+            0.1706,
+            1.7976,
+            0.373
+          ],
+          "adv_loss": 0.4791
+        },
+        {
+          "iteration": 5,
+          "accuracy": 0.8515,
+          "f1_score": 0.9041,
+          "roc_auc": 0.8786,
+          "precision": 0.8931,
+          "p_rules": {
+            "Gender": 77.17,
+            "region_origin": 56.25,
+            "educ_level": 75.49
+          },
+          "lambda": [
+            0.2253,
+            2.3726,
+            0.4173
+          ],
+          "adv_loss": 0.4794
+        },
+        {
+          "iteration": 6,
+          "accuracy": 0.8531,
+          "f1_score": 0.905,
+          "roc_auc": 0.8706,
+          "precision": 0.8949,
+          "p_rules": {
+            "Gender": 75.42,
+            "region_origin": 66.89,
+            "educ_level": 76.21
+          },
+          "lambda": [
+            0.2961,
+            2.9663,
+            0.53
+          ],
+          "adv_loss": 0.4794
+        },
+        {
+          "iteration": 7,
+          "accuracy": 0.8404,
+          "f1_score": 0.8973,
+          "roc_auc": 0.8733,
+          "precision": 0.8838,
+          "p_rules": {
+            "Gender": 76.27,
+            "region_origin": 64.5,
+            "educ_level": 75.94
+          },
+          "lambda": [
+            0.4106,
+            3.294,
+            0.6248
+          ],
+          "adv_loss": 0.4794
+        },
+        {
+          "iteration": 8,
+          "accuracy": 0.8483,
+          "f1_score": 0.9018,
+          "roc_auc": 0.8784,
+          "precision": 0.8927,
+          "p_rules": {
+            "Gender": 75.97,
+            "region_origin": 63.85,
+            "educ_level": 72.75
+          },
+          "lambda": [
+            0.5039,
+            3.6815,
+            0.7263
+          ],
+          "adv_loss": 0.4795
+        },
+        {
+          "iteration": 9,
+          "accuracy": 0.8515,
+          "f1_score": 0.9051,
+          "roc_auc": 0.8822,
+          "precision": 0.8854,
+          "p_rules": {
+            "Gender": 79.32,
+            "region_origin": 66.0,
+            "educ_level": 78.68
+          },
+          "lambda": [
+            0.6048,
+            4.0852,
+            0.9075
+          ],
+          "adv_loss": 0.4804
+        },
+        {
+          "iteration": 10,
+          "accuracy": 0.8547,
+          "f1_score": 0.9059,
+          "roc_auc": 0.8922,
+          "precision": 0.8968,
+          "p_rules": {
+            "Gender": 78.31,
+            "region_origin": 57.73,
+            "educ_level": 76.43
+          },
+          "lambda": [
+            0.6219,
+            4.4352,
+            0.9407
+          ],
+          "adv_loss": 0.4814
+        },
+        {
+          "iteration": 11,
+          "accuracy": 0.842,
+          "f1_score": 0.898,
+          "roc_auc": 0.8714,
+          "precision": 0.8871,
+          "p_rules": {
+            "Gender": 76.39,
+            "region_origin": 69.93,
+            "educ_level": 72.75
+          },
+          "lambda": [
+            0.6641,
+            4.992,
+            1.0298
+          ],
+          "adv_loss": 0.4841
+        },
+        {
+          "iteration": 12,
+          "accuracy": 0.8499,
+          "f1_score": 0.9034,
+          "roc_auc": 0.8768,
+          "precision": 0.8898,
+          "p_rules": {
+            "Gender": 77.03,
+            "region_origin": 64.5,
+            "educ_level": 77.33
+          },
+          "lambda": [
+            0.7543,
+            5.2437,
+            1.2111
+          ],
+          "adv_loss": 0.4861
+        },
+        {
+          "iteration": 13,
+          "accuracy": 0.8515,
+          "f1_score": 0.9052,
+          "roc_auc": 0.8755,
+          "precision": 0.8839,
+          "p_rules": {
+            "Gender": 78.95,
+            "region_origin": 69.0,
+            "educ_level": 77.3
+          },
+          "lambda": [
+            0.8284,
+            5.6312,
+            1.2778
+          ],
+          "adv_loss": 0.4873
+        },
+        {
+          "iteration": 14,
+          "accuracy": 0.8357,
+          "f1_score": 0.8954,
+          "roc_auc": 0.8745,
+          "precision": 0.8725,
+          "p_rules": {
+            "Gender": 78.6,
+            "region_origin": 74.01,
+            "educ_level": 76.8
+          },
+          "lambda": [
+            0.8546,
+            5.9062,
+            1.3454
+          ],
+          "adv_loss": 0.4885
+        },
+        {
+          "iteration": 15,
+          "accuracy": 0.8404,
+          "f1_score": 0.8989,
+          "roc_auc": 0.8628,
+          "precision": 0.8718,
+          "p_rules": {
+            "Gender": 80.45,
+            "region_origin": 72.0,
+            "educ_level": 78.69
+          },
+          "lambda": [
+            0.8896,
+            6.0558,
+            1.4253
+          ],
+          "adv_loss": 0.4892
+        },
+        {
+          "iteration": 16,
+          "accuracy": 0.8436,
+          "f1_score": 0.9013,
+          "roc_auc": 0.8658,
+          "precision": 0.8709,
+          "p_rules": {
+            "Gender": 81.3,
+            "region_origin": 76.01,
+            "educ_level": 76.83
+          },
+          "lambda": [
+            0.8784,
+            6.2558,
+            1.4582
+          ],
+          "adv_loss": 0.49
+        },
+        {
+          "iteration": 17,
+          "accuracy": 0.8468,
+          "f1_score": 0.9025,
+          "roc_auc": 0.8663,
+          "precision": 0.8787,
+          "p_rules": {
+            "Gender": 79.59,
+            "region_origin": 71.45,
+            "educ_level": 80.22
+          },
+          "lambda": [
+            0.8459,
+            6.3555,
+            1.5375
+          ],
+          "adv_loss": 0.4898
+        },
+        {
+          "iteration": 18,
+          "accuracy": 0.8373,
+          "f1_score": 0.8975,
+          "roc_auc": 0.8568,
+          "precision": 0.8656,
+          "p_rules": {
+            "Gender": 81.73,
+            "region_origin": 79.5,
+            "educ_level": 79.54
+          },
+          "lambda": [
+            0.8896,
+            6.5692,
+            1.532
+          ],
+          "adv_loss": 0.4901
+        },
+        {
+          "iteration": 19,
+          "accuracy": 0.8341,
+          "f1_score": 0.8943,
+          "roc_auc": 0.8698,
+          "precision": 0.8723,
+          "p_rules": {
+            "Gender": 79.96,
+            "region_origin": 72.53,
+            "educ_level": 75.49
+          },
+          "lambda": [
+            0.8464,
+            6.5817,
+            1.5435
+          ],
+          "adv_loss": 0.4905
+        },
+        {
+          "iteration": 20,
+          "accuracy": 0.8373,
+          "f1_score": 0.8971,
+          "roc_auc": 0.8706,
+          "precision": 0.8685,
+          "p_rules": {
+            "Gender": 82.5,
+            "region_origin": 73.5,
+            "educ_level": 76.83
+          },
+          "lambda": [
+            0.8896,
+            6.7684,
+            1.6563
+          ],
+          "adv_loss": 0.4908
+        },
+        {
+          "iteration": 21,
+          "accuracy": 0.8325,
+          "f1_score": 0.8934,
+          "roc_auc": 0.867,
+          "precision": 0.8706,
+          "p_rules": {
+            "Gender": 80.18,
+            "region_origin": 75.0,
+            "educ_level": 76.37
+          },
+          "lambda": [
+            0.8272,
+            6.9309,
+            1.7355
+          ],
+          "adv_loss": 0.4917
+        },
+        {
+          "iteration": 22,
+          "accuracy": 0.8325,
+          "f1_score": 0.8942,
+          "roc_auc": 0.8541,
+          "precision": 0.8649,
+          "p_rules": {
+            "Gender": 82.71,
+            "region_origin": 79.93,
+            "educ_level": 75.47
+          },
+          "lambda": [
+            0.8228,
+            7.0559,
+            1.8264
+          ],
+          "adv_loss": 0.4918
+        },
+        {
+          "iteration": 23,
+          "accuracy": 0.8468,
+          "f1_score": 0.9046,
+          "roc_auc": 0.8532,
+          "precision": 0.863,
+          "p_rules": {
+            "Gender": 83.47,
+            "region_origin": 78.45,
+            "educ_level": 82.25
+          },
+          "lambda": [
+            0.755,
+            7.0575,
+            1.9397
+          ],
+          "adv_loss": 0.4924
+        },
+        {
+          "iteration": 24,
+          "accuracy": 0.831,
+          "f1_score": 0.8933,
+          "roc_auc": 0.8618,
+          "precision": 0.8632,
+          "p_rules": {
+            "Gender": 82.93,
+            "region_origin": 76.5,
+            "educ_level": 78.64
+          },
+          "lambda": [
+            0.6682,
+            7.0962,
+            1.8834
+          ],
+          "adv_loss": 0.4913
+        },
+        {
+          "iteration": 25,
+          "accuracy": 0.8262,
+          "f1_score": 0.8891,
+          "roc_auc": 0.8615,
+          "precision": 0.8681,
+          "p_rules": {
+            "Gender": 81.36,
+            "region_origin": 72.0,
+            "educ_level": 75.03
+          },
+          "lambda": [
+            0.5949,
+            7.1837,
+            1.9397
+          ],
+          "adv_loss": 0.4917
+        },
+        {
+          "iteration": 26,
+          "accuracy": 0.8389,
+          "f1_score": 0.8974,
+          "roc_auc": 0.8487,
+          "precision": 0.8745,
+          "p_rules": {
+            "Gender": 82.63,
+            "region_origin": 72.0,
+            "educ_level": 74.11
+          },
+          "lambda": [
+            0.5608,
+            7.3837,
+            2.0639
+          ],
+          "adv_loss": 0.4916
+        },
+        {
+          "iteration": 27,
+          "accuracy": 0.842,
+          "f1_score": 0.8984,
+          "roc_auc": 0.8617,
+          "precision": 0.884,
+          "p_rules": {
+            "Gender": 82.1,
+            "region_origin": 65.75,
+            "educ_level": 75.5
+          },
+          "lambda": [
+            0.4951,
+            7.5837,
+            2.2111
+          ],
+          "adv_loss": 0.4922
+        },
+        {
+          "iteration": 28,
+          "accuracy": 0.842,
+          "f1_score": 0.8994,
+          "roc_auc": 0.8583,
+          "precision": 0.8765,
+          "p_rules": {
+            "Gender": 80.98,
+            "region_origin": 71.05,
+            "educ_level": 74.57
+          },
+          "lambda": [
+            0.4427,
+            7.94,
+            2.3236
+          ],
+          "adv_loss": 0.4929
+        },
+        {
+          "iteration": 29,
+          "accuracy": 0.8341,
+          "f1_score": 0.8949,
+          "roc_auc": 0.8459,
+          "precision": 0.868,
+          "p_rules": {
+            "Gender": 82.06,
+            "region_origin": 81.0,
+            "educ_level": 76.41
+          },
+          "lambda": [
+            0.4181,
+            8.1637,
+            2.4594
+          ],
+          "adv_loss": 0.4935
+        },
+        {
+          "iteration": 30,
+          "accuracy": 0.8325,
+          "f1_score": 0.8957,
+          "roc_auc": 0.8499,
+          "precision": 0.8553,
+          "p_rules": {
+            "Gender": 86.6,
+            "region_origin": 79.5,
+            "educ_level": 81.84
+          },
+          "lambda": [
+            0.3665,
+            8.1387,
+            2.5491
+          ],
+          "adv_loss": 0.4938
+        },
+        {
+          "iteration": 31,
+          "accuracy": 0.8357,
+          "f1_score": 0.8962,
+          "roc_auc": 0.8584,
+          "precision": 0.8668,
+          "p_rules": {
+            "Gender": 84.39,
+            "region_origin": 77.05,
+            "educ_level": 75.03
+          },
+          "lambda": [
+            0.2016,
+            8.1637,
+            2.503
+          ],
+          "adv_loss": 0.4945
+        },
+        {
+          "iteration": 32,
+          "accuracy": 0.8341,
+          "f1_score": 0.8959,
+          "roc_auc": 0.8576,
+          "precision": 0.861,
+          "p_rules": {
+            "Gender": 84.23,
+            "region_origin": 78.0,
+            "educ_level": 81.93
+          },
+          "lambda": [
+            0.0919,
+            8.2373,
+            2.6274
+          ],
+          "adv_loss": 0.494
+        },
+        {
+          "iteration": 33,
+          "accuracy": 0.8436,
+          "f1_score": 0.9005,
+          "roc_auc": 0.8588,
+          "precision": 0.8767,
+          "p_rules": {
+            "Gender": 82.02,
+            "region_origin": 73.5,
+            "educ_level": 74.57
+          },
+          "lambda": [
+            0.0,
+            8.2873,
+            2.579
+          ],
+          "adv_loss": 0.4934
+        },
+        {
+          "iteration": 34,
+          "accuracy": 0.8389,
+          "f1_score": 0.8978,
+          "roc_auc": 0.8539,
+          "precision": 0.8716,
+          "p_rules": {
+            "Gender": 80.23,
+            "region_origin": 78.45,
+            "educ_level": 76.37
+          },
+          "lambda": [
+            0.0,
+            8.4498,
+            2.7148
+          ],
+          "adv_loss": 0.494
+        },
+        {
+          "iteration": 35,
+          "accuracy": 0.842,
+          "f1_score": 0.901,
+          "roc_auc": 0.8558,
+          "precision": 0.865,
+          "p_rules": {
+            "Gender": 84.45,
+            "region_origin": 78.0,
+            "educ_level": 79.54
+          },
+          "lambda": [
+            0.0,
+            8.4885,
+            2.8056
+          ],
+          "adv_loss": 0.4943
+        },
+        {
+          "iteration": 36,
+          "accuracy": 0.8452,
+          "f1_score": 0.9032,
+          "roc_auc": 0.8596,
+          "precision": 0.8655,
+          "p_rules": {
+            "Gender": 84.88,
+            "region_origin": 82.09,
+            "educ_level": 77.73
+          },
+          "lambda": [
+            0.0,
+            8.5385,
+            2.8171
+          ],
+          "adv_loss": 0.4955
+        },
+        {
+          "iteration": 37,
+          "accuracy": 0.8357,
+          "f1_score": 0.8966,
+          "roc_auc": 0.853,
+          "precision": 0.864,
+          "p_rules": {
+            "Gender": 83.58,
+            "region_origin": 79.5,
+            "educ_level": 78.69
+          },
+          "lambda": [
+            0.0,
+            8.4861,
+            2.8738
+          ],
+          "adv_loss": 0.495
+        },
+        {
+          "iteration": 38,
+          "accuracy": 0.842,
+          "f1_score": 0.9,
+          "roc_auc": 0.8555,
+          "precision": 0.8721,
+          "p_rules": {
+            "Gender": 84.8,
+            "region_origin": 74.49,
+            "educ_level": 76.43
+          },
+          "lambda": [
+            0.0,
+            8.5385,
+            2.9067
+          ],
+          "adv_loss": 0.4952
+        },
+        {
+          "iteration": 39,
+          "accuracy": 0.8325,
+          "f1_score": 0.8944,
+          "roc_auc": 0.8496,
+          "precision": 0.8635,
+          "p_rules": {
+            "Gender": 83.15,
+            "region_origin": 77.53,
+            "educ_level": 77.77
+          },
+          "lambda": [
+            0.0,
+            8.6761,
+            2.9958
+          ],
+          "adv_loss": 0.4956
+        },
+        {
+          "iteration": 40,
+          "accuracy": 0.8404,
+          "f1_score": 0.8999,
+          "roc_auc": 0.8506,
+          "precision": 0.8648,
+          "p_rules": {
+            "Gender": 85.07,
+            "region_origin": 79.05,
+            "educ_level": 77.77
+          },
+          "lambda": [
+            0.0,
+            8.7378,
+            3.0516
+          ],
+          "adv_loss": 0.4958
+        }
+      ],
+      "fairness_final": {
+        "Gender": {
+          "dp": 17.51,
+          "eodd": 10.87,
+          "eopp": 7.51
+        },
+        "region_origin": {
+          "dp": 9.81,
+          "eodd": 3.84,
+          "eopp": 7.37
+        },
+        "educ_level": {
+          "dp": 17.98,
+          "eodd": 7.81,
+          "eopp": 7.46
+        }
+      },
+      "fingerprint": {
+        "n_sensitive": 3,
+        "sensitive_imbalance": [
+          0.1258,
+          0.2551,
+          0.2797
+        ],
+        "target_balance": 0.7642,
+        "n_samples_log10": 3.403,
+        "n_features_log10": 1.949
+      }
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "target": "legal_entry",
+  "sensitive": [
+    "Gender",
+    "region_origin",
+    "educ_level"
+  ],
+  "binarization": {
+    "Gender": {
+      "positive_value": "Female"
+    },
+    "region_origin": {
+      "positive_value": "Greater Tunis"
+    },
+    "educ_level": {
+      "positive_value": "Higher education"
+    }
+  },
+  "dropped": [
+    "id_menage",
+    "Id_Ind",
+    "first_mig_intermediary_pub",
+    "first_mig_intermediary_pri"
+  ],
+  "features_kept": [
+    "weight",
+    "Poids_Final",
+    "gouv",
+    "year",
+    "first_mig_intermediary",
+    "intermediation_type",
+    "D_intermed",
+    "treatpublic",
+    "treatprivate",
+    "dest_group_iv",
+    "N_cell_lag",
+    "N_intermed_lag",
+    "Z_lag",
+    "Post2011",
+    "coastal_origin",
+    "age_group",
+    "working_age_20_59",
+    "dual_nationality",
+    "country_current",
+    "destination_europe",
+    "higher_educ",
+    "arabic_home",
+    "married_at_departure",
+    "married_current",
+    "marriage_change",
+    "has_living_children",
+    "family_with_migrant",
+    "intermediary_type",
+    "Took_money",
+    "departure_reason",
+    "decision_maker",
+    "received_help_departure",
+    "had_contact_before_departure",
+    "contact_in_first_dest",
+    "contact_helped",
+    "other_help",
+    "worked_current_country",
+    "arrival_employment_status",
+    "jobsearch_duration_cat",
+    "firstjob_help_source",
+    "employment_status_main",
+    "wage_employee",
+    "had_job_pre_covid",
+    "employment_status_precovid",
+    "sector_precovid",
+    "tenure_cat",
+    "benefits_count",
+    "dest_group",
+    "france",
+    "ita",
+    "ger",
+    "Center_East",
+    "greater_tunis",
+    "intend_stay",
+    "stay_reason",
+    "stay_jobmotiv",
+    "intermediation_formality",
+    "Job_Quality_Index",
+    "JobQI_z",
+    "benefits_sum",
+    "benefits_sum_z",
+    "irt_theta_1pl",
+    "irt_theta_1pl_z",
+    "JobQI_z_pos"
+  ]
+}

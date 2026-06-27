@@ -1,0 +1,34 @@
+{
+  "sensitive_attrs": [
+    "Gender",
+    "region_origin",
+    "educ_level"
+  ],
+  "binarization_rules": {
+    "Gender": {
+      "positive_value": "Female"
+    },
+    "region_origin": {
+      "positive_value": "Center-West"
+    },
+    "educ_level": {
+      "positive_value": "Higher education"
+    }
+  },
+  "target_col": "legal_entry",
+  "columns_to_drop": [
+    "Center_East",
+    "Id_Ind",
+    "Poids_Final",
+    "coastal_origin",
+    "france",
+    "ger",
+    "greater_tunis",
+    "higher_educ",
+    "id_menage",
+    "ita",
+    "weight"
+  ],
+  "justification": "curated \u2014 local LLM unreliable on target and proxies",
+  "modality": "tabular"
+}

@@ -1,0 +1,318 @@
+{
+  "adult|income|race,sex": [
+    {
+      "timestamp": "2026-06-23T11:22:44.080632",
+      "seed": 23846,
+      "lambda_final": [
+        4.201251837323017,
+        3.446093351948425
+      ],
+      "lambda_at_best": [
+        4.2013,
+        3.4461
+      ],
+      "p_rules_final": {
+        "sex": 81.39731181641952,
+        "race": 81.617027677497
+      },
+      "accuracy_final": 0.8208,
+      "total_epochs": 610,
+      "iterations": 12,
+      "success": true,
+      "lambda_trajectory": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.3190143736837598,
+          0.22399517684887468
+        ],
+        [
+          0.815571093197824,
+          0.609684362626558
+        ],
+        [
+          1.380268843097947,
+          1.052658836222025
+        ],
+        [
+          1.9300399098982872,
+          1.4777277867195198
+        ],
+        [
+          2.466373065300185,
+          1.8998158872326012
+        ],
+        [
+          2.941554438331441,
+          2.2901393773196497
+        ],
+        [
+          3.3217501761597426,
+          2.6274888221567823
+        ],
+        [
+          3.619409111543176,
+          2.8826565523097742
+        ],
+        [
+          3.8610287473952054,
+          3.092979570893504
+        ],
+        [
+          4.065013475726071,
+          3.2993291806643725
+        ],
+        [
+          4.201251837323017,
+          3.446093351948425
+        ]
+      ],
+      "iteration_metrics": [
+        {
+          "iteration": 0,
+          "accuracy": 0.856,
+          "f1_score": 0.6729,
+          "roc_auc": 0.9136,
+          "precision": 0.7423,
+          "p_rules": {
+            "sex": 36.86,
+            "race": 49.17
+          },
+          "lambda": [
+            0.0,
+            0.0
+          ],
+          "adv_loss": 0.0
+        },
+        {
+          "iteration": 1,
+          "accuracy": 0.8548,
+          "f1_score": 0.6751,
+          "roc_auc": 0.9057,
+          "precision": 0.7314,
+          "p_rules": {
+            "sex": 37.46,
+            "race": 50.13
+          },
+          "lambda": [
+            0.0,
+            0.0
+          ],
+          "adv_loss": 0.4906
+        },
+        {
+          "iteration": 2,
+          "accuracy": 0.8526,
+          "f1_score": 0.666,
+          "roc_auc": 0.8925,
+          "precision": 0.7328,
+          "p_rules": {
+            "sex": 43.57,
+            "race": 49.48
+          },
+          "lambda": [
+            0.319,
+            0.224
+          ],
+          "adv_loss": 0.5041
+        },
+        {
+          "iteration": 3,
+          "accuracy": 0.8481,
+          "f1_score": 0.6555,
+          "roc_auc": 0.8827,
+          "precision": 0.7222,
+          "p_rules": {
+            "sex": 51.05,
+            "race": 56.93
+          },
+          "lambda": [
+            0.8156,
+            0.6097
+          ],
+          "adv_loss": 0.515
+        },
+        {
+          "iteration": 4,
+          "accuracy": 0.844,
+          "f1_score": 0.6402,
+          "roc_auc": 0.8697,
+          "precision": 0.7197,
+          "p_rules": {
+            "sex": 59.4,
+            "race": 64.67
+          },
+          "lambda": [
+            1.3803,
+            1.0527
+          ],
+          "adv_loss": 0.5196
+        },
+        {
+          "iteration": 5,
+          "accuracy": 0.8423,
+          "f1_score": 0.6294,
+          "roc_auc": 0.8702,
+          "precision": 0.7249,
+          "p_rules": {
+            "sex": 59.8,
+            "race": 63.39
+          },
+          "lambda": [
+            1.93,
+            1.4777
+          ],
+          "adv_loss": 0.5214
+        },
+        {
+          "iteration": 6,
+          "accuracy": 0.8349,
+          "f1_score": 0.6256,
+          "roc_auc": 0.8666,
+          "precision": 0.6892,
+          "p_rules": {
+            "sex": 66.7,
+            "race": 67.35
+          },
+          "lambda": [
+            2.4664,
+            1.8998
+          ],
+          "adv_loss": 0.5226
+        },
+        {
+          "iteration": 7,
+          "accuracy": 0.8319,
+          "f1_score": 0.6121,
+          "roc_auc": 0.8608,
+          "precision": 0.6884,
+          "p_rules": {
+            "sex": 73.66,
+            "race": 71.45
+          },
+          "lambda": [
+            2.9416,
+            2.2901
+          ],
+          "adv_loss": 0.5232
+        },
+        {
+          "iteration": 8,
+          "accuracy": 0.8305,
+          "f1_score": 0.6068,
+          "roc_auc": 0.8594,
+          "precision": 0.6871,
+          "p_rules": {
+            "sex": 75.8,
+            "race": 77.46
+          },
+          "lambda": [
+            3.3218,
+            2.6275
+          ],
+          "adv_loss": 0.5235
+        },
+        {
+          "iteration": 9,
+          "accuracy": 0.8302,
+          "f1_score": 0.6004,
+          "roc_auc": 0.8572,
+          "precision": 0.6925,
+          "p_rules": {
+            "sex": 75.57,
+            "race": 75.77
+          },
+          "lambda": [
+            3.6194,
+            2.8827
+          ],
+          "adv_loss": 0.5237
+        },
+        {
+          "iteration": 10,
+          "accuracy": 0.8293,
+          "f1_score": 0.5991,
+          "roc_auc": 0.8563,
+          "precision": 0.6891,
+          "p_rules": {
+            "sex": 75.35,
+            "race": 72.12
+          },
+          "lambda": [
+            3.861,
+            3.093
+          ],
+          "adv_loss": 0.5238
+        },
+        {
+          "iteration": 11,
+          "accuracy": 0.8237,
+          "f1_score": 0.5879,
+          "roc_auc": 0.8495,
+          "precision": 0.6724,
+          "p_rules": {
+            "sex": 80.87,
+            "race": 79.69
+          },
+          "lambda": [
+            4.065,
+            3.2993
+          ],
+          "adv_loss": 0.5239
+        },
+        {
+          "iteration": 12,
+          "accuracy": 0.8208,
+          "f1_score": 0.5863,
+          "roc_auc": 0.8428,
+          "precision": 0.66,
+          "p_rules": {
+            "sex": 81.4,
+            "race": 81.62
+          },
+          "lambda": [
+            4.2013,
+            3.4461
+          ],
+          "adv_loss": 0.5241
+        }
+      ],
+      "fairness_final": {
+        "sex": {
+          "dp": 3.82,
+          "eodd": 11.96,
+          "eopp": 21.36
+        },
+        "race": {
+          "dp": 3.63,
+          "eodd": 1.71,
+          "eopp": 2.12
+        }
+      },
+      "fairness_baseline": {
+        "sex": {
+          "dp": 16.06,
+          "eodd": 4.47,
+          "eopp": 3.3
+        },
+        "race": {
+          "dp": 10.91,
+          "eodd": 6.53,
+          "eopp": 9.17
+        }
+      },
+      "fingerprint": {
+        "n_sensitive": 2,
+        "sensitive_imbalance": [
+          0.1476,
+          0.3283
+        ],
+        "target_balance": 0.2408,
+        "n_samples_log10": 4.416,
+        "n_features_log10": 1.968
+      }
+    }
+  ]
+}
